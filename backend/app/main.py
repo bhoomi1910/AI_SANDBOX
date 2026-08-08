@@ -1,5 +1,5 @@
 """
-Aegis Sandbox AI — FastAPI application entrypoint.
+AI-Powered Intelligent Sandbox — FastAPI application entrypoint.
 
 Run locally:
     uvicorn app.main:app --reload --port 8000
@@ -7,18 +7,29 @@ Run locally:
 Interactive API docs:
     http://localhost:8000/docs
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.database import init_db
 from app.routers import dashboard, investigations, upload
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="AI-Powered Interactive Malware Analysis & Threat Investigation Platform (MSc prototype).",
+    description="AI-Powered Intelligent Sandbox for Secure File Analysis (B.E. Major Project).",
+    lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -43,12 +54,12 @@ def health():
         "status": "operational",
         "app": settings.app_name,
         "environment": settings.environment,
-        "useRealLlm": settings.use_real_llm,
+        "database": settings.database_url,
         "components": {
             "api": "operational",
-            "sandbox_cluster": "operational",
-            "ai_engine": "operational",
-            "threat_intel_feeds": "operational",
+            "static_analysis": "pending",
+            "ai_engine": settings.ai_provider_label,
+            "threat_intel_feeds": "pending",
         },
     }
 

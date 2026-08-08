@@ -1,36 +1,89 @@
-"""Sample submission endpoint."""
-import hashlib
-from datetime import datetime, timezone
+"""Sample upload endpoint.
 
-from fastapi import APIRouter, UploadFile, File
+Security model:
+- size enforced while streaming (413 if over the configured limit)
+- empty uploads rejected (422)
+- client filename sanitised; file stored under a random UUID name
+- SHA-256 / MD5 / SHA-1 computed at write time
+- an Investigation record is created and queued for analysis
+"""
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.database import get_db
+from app.models import Investigation, new_id, utcnow
+from app.services.storage import EmptyFileError, FileTooLargeError, save_upload
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/samples", tags=["samples"])
 
-ALLOWED = {"exe", "dll", "pdf", "docx", "zip", "iso"}
+settings = get_settings()
 
 
-@router.post("/upload")
-async def upload_sample(file: UploadFile = File(...)):
-    """
-    Accept a sample, compute its hashes, and (in production) enqueue it for
-    detonation. The prototype computes real hashes then returns a queued case.
-    """
-    contents = await file.read()
-    sha256 = hashlib.sha256(contents).hexdigest()
-    md5 = hashlib.md5(contents).hexdigest()
-    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+@router.post("/upload", status_code=201)
+def upload_sample(file: UploadFile, db: Session = Depends(get_db)):
+    try:
+        stored = save_upload(file, settings.upload_dir_path, settings.max_upload_size)
+    except FileTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except EmptyFileError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    case_id = _next_case_id(db)
+    inv = Investigation(
+        id=new_id(),
+        case_id=case_id,
+        filename=stored["original_name"],
+        file_type=stored["file_type"],
+        mime_type=_mime_for(stored["file_type"]),
+        size_bytes=stored["size_bytes"],
+        sha256=stored["sha256"],
+        md5=stored["md5"],
+        sha1=stored["sha1"],
+        storage_path=stored["storage_path"],
+        status="queued",
+        progress=0,
+        current_stage="Queued for analysis",
+        uploaded_at=utcnow(),
+    )
+    db.add(inv)
+    db.commit()
+    db.refresh(inv)
+
+    logger.info("Sample stored id=%s case=%s sha256=%s", inv.id, inv.case_id, inv.sha256)
+    return {"message": "Sample received and queued for analysis", "investigation": inv.to_dict()}
+
+
+def _next_case_id(db: Session) -> str:
+    """Return the next INV-YYYY-NNNN case id (last four-digit ordinal + 1)."""
+    year = utcnow().year
+    last = (
+        db.query(Investigation.case_id)
+        .filter(Investigation.case_id.like(f"INV-{year}-%"))
+        .order_by(Investigation.case_id.desc())
+        .first()
+    )
+    if last and last[0]:
+        ordinal = int(last[0].rsplit("-", 1)[-1]) + 1
+    else:
+        ordinal = 1
+    return f"INV-{year}-{ordinal:04d}"
+
+
+def _mime_for(file_type: str) -> str:
     return {
-        "caseId": "AGS-2026-0413",
-        "status": "queued",
-        "sample": {
-            "filename": file.filename,
-            "fileType": ext if ext in ALLOWED else "bin",
-            "size": len(contents),
-            "sha256": sha256,
-            "md5": md5,
-            "submittedAt": datetime.now(timezone.utc).isoformat(),
-        },
-        "message": "Sample queued for detonation in sandbox VM-07.",
-        "supported": ext in ALLOWED,
-    }
+        "exe": "application/vnd.microsoft.portable-executable",
+        "dll": "application/x-msdownload",
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "zip": "application/zip",
+        "iso": "application/x-iso9660-image",
+        "image": "application/octet-stream",
+        "script": "text/plain",
+        "text": "text/plain",
+        "bin": "application/octet-stream",
+    }.get(file_type, "application/octet-stream")
