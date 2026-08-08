@@ -1,0 +1,337 @@
+================================================================================
+  AEGIS SANDBOX AI  —  SETUP & RUN GUIDE  (steps.txt)
+  AI-Powered Interactive Malware Analysis & Threat Investigation Platform
+  MSc Cyber Security demonstration prototype
+================================================================================
+
+This guide is written for BEGINNERS. Follow it top to bottom.
+
+TL;DR — the fastest way to see the app (no backend, no database needed):
+    1) Install Node.js 20
+    2) Open a terminal in the "frontend" folder
+    3) Run:  npm install
+    4) Run:  npm run dev
+    5) Open  http://localhost:5173  and click "Access console"
+
+That's it — the whole workflow runs on built-in realistic mock data.
+The backend, database, Docker and sandbox below are OPTIONAL and only needed
+if you want to demonstrate the full production topology.
+
+
+================================================================================
+  0. WHAT YOU WILL RUN
+================================================================================
+
+  • FRONTEND  — the SOC console (React). REQUIRED. This is the demo.
+  • BACKEND   — FastAPI REST API (Python). OPTIONAL.
+  • DATABASE  — PostgreSQL. OPTIONAL (backend defaults to SQLite).
+  • REDIS     — task broker. OPTIONAL (production topology only).
+  • SANDBOX   — CAPE/Cuckoo. OPTIONAL (results are simulated in the prototype).
+
+
+================================================================================
+  1. SOFTWARE TO INSTALL  (with recommended versions)
+================================================================================
+
+  REQUIRED (for the frontend demo):
+    • Node.js .................. v20 LTS  (comes with npm v10)
+    • A modern browser ......... Chrome / Edge / Firefox
+    • Visual Studio Code ....... latest (recommended editor)
+
+  OPTIONAL (for the full stack):
+    • Python ................... 3.12  (3.11+ works; AVOID 3.14 — some libs lag)
+    • Git ...................... latest
+    • Docker Desktop ........... latest (includes Docker Compose v2)
+    • PostgreSQL ............... 16  (only if NOT using Docker)
+    • Redis .................... 7   (only if NOT using Docker)
+
+  Check what you already have (run in a terminal):
+    node -v
+    npm -v
+    python --version        (Windows)   /   python3 --version   (Linux/macOS)
+    git --version
+    docker --version
+
+
+--------------------------------------------------------------------------------
+  1a. WINDOWS SETUP  (recommended: winget)
+--------------------------------------------------------------------------------
+  Open PowerShell and run:
+
+    winget install OpenJS.NodeJS.LTS
+    winget install Python.Python.3.12
+    winget install Git.Git
+    winget install Docker.DockerDesktop
+    winget install Microsoft.VisualStudioCode
+
+  Then CLOSE and RE-OPEN PowerShell so the new PATH is picked up.
+  (Docker Desktop must be started once and left running before "docker compose".)
+
+
+--------------------------------------------------------------------------------
+  1b. LINUX SETUP  (Ubuntu / Debian)
+--------------------------------------------------------------------------------
+    # Node.js 20
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+
+    # Python + Git
+    sudo apt-get update
+    sudo apt-get install -y python3.12 python3.12-venv python3-pip git
+
+    # Docker (optional)
+    curl -fsSL https://get.docker.com | sh
+    sudo usermod -aG docker $USER      # log out/in afterwards
+
+    # PostgreSQL + Redis (optional, if not using Docker)
+    sudo apt-get install -y postgresql redis-server
+
+
+================================================================================
+  2. GET THE CODE
+================================================================================
+  You already have the project folder "AI SANDBOX".
+  Open it in VS Code:   File ▸ Open Folder ▸ AI SANDBOX
+
+  Open a terminal inside VS Code:   Terminal ▸ New Terminal
+
+
+================================================================================
+  3. RUN THE FRONTEND  (this is the main demo)  ✅ REQUIRED
+================================================================================
+
+  Windows (PowerShell) or Linux/macOS:
+
+    cd frontend
+    npm install                 # first time only (~30s)
+    npm run dev
+
+  You will see:  "Local: http://localhost:5173/"
+
+  Open that URL in your browser. On the login screen the credentials are
+  pre-filled — just click  "Access console".
+
+  Try the workflow:
+    Dashboard → Upload Sample (drag any file, or click "Use demo sample")
+    → Investigation Queue → open a case → Static → Dynamic → Network
+    → Threat Intel → MITRE ATT&CK → AI Investigation → Report → Export PDF
+
+  To STOP:  press  Ctrl + C  in the terminal.
+
+  Optional production build check:
+    npm run build               # type-checks + bundles into frontend/dist
+    npm run preview             # serves the production build
+
+
+================================================================================
+  4. RUN THE BACKEND  (optional — FastAPI)
+================================================================================
+  The backend runs on SQLite by default, so NO database setup is required.
+
+  Windows (PowerShell):
+    cd backend
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    pip install -r requirements.txt
+    copy .env.example .env
+    uvicorn app.main:app --reload --port 8000
+
+  Linux/macOS:
+    cd backend
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    cp .env.example .env
+    uvicorn app.main:app --reload --port 8000
+
+  Open the interactive API docs:   http://localhost:8000/docs
+  Health check:                     http://localhost:8000/api/health
+
+  (IMPORTANT: install into the virtual environment as shown. Installing the
+   pinned versions globally on top of other packages can cause version clashes.)
+
+  To have the FRONTEND call the backend instead of local mock data:
+    - In frontend/.env set:  VITE_USE_BACKEND=true
+    - Restart  npm run dev
+    (Leaving it false keeps the demo fully self-contained — recommended.)
+
+
+================================================================================
+  5. RUN THE DATABASE  (optional — PostgreSQL, only without Docker)
+================================================================================
+  Easiest is Docker (section 7). If you want a local PostgreSQL:
+
+    1) Create the database and user:
+         psql -U postgres
+         CREATE USER aegis WITH PASSWORD 'aegis';
+         CREATE DATABASE aegis OWNER aegis;
+         \q
+
+    2) Load the schema:
+         psql -U aegis -d aegis -f database/init.sql
+
+    3) Point the backend at it — in backend/.env set:
+         DATABASE_URL=postgresql+psycopg2://aegis:aegis@localhost:5432/aegis
+
+    4) Also uncomment  psycopg2-binary  in backend/requirements.txt and reinstall.
+
+
+================================================================================
+  6. REDIS  (optional — production task queue)
+================================================================================
+  Only needed for the Celery/async topology (not required for the demo).
+    - Docker:   handled automatically by docker-compose (section 7)
+    - Local:    start the redis-server service, then in backend/.env:
+                  REDIS_URL=redis://localhost:6379/0
+
+
+================================================================================
+  7. RUN EVERYTHING WITH DOCKER  (optional — full stack in one command)
+================================================================================
+  Make sure Docker Desktop is running, then from the project root:
+
+    docker compose up --build
+
+  Services that start:
+    • frontend  → http://localhost:8080
+    • backend   → http://localhost:8000/docs
+    • db        → PostgreSQL on localhost:5432 (schema auto-loaded)
+    • redis     → localhost:6379
+
+  Rebuild after code changes:   docker compose up --build
+  Run in background:            docker compose up -d --build
+  View logs:                    docker compose logs -f
+
+
+================================================================================
+  8. START THE SANDBOX  (optional — CAPE / Cuckoo)
+================================================================================
+  The prototype SIMULATES sandbox detonation, so this is NOT required.
+
+  For a real deployment you would:
+    1) Provision a CAPE Sandbox (recommended) or Cuckoo host with a Windows VM.
+    2) Expose its REST API (default CAPE: http://<host>:8000/apiv2/).
+    3) Add the connector settings to backend/.env, e.g.:
+         SANDBOX_URL=http://localhost:8000/apiv2/
+         SANDBOX_API_TOKEN=...
+    4) Replace the simulated results in app/data/mock_data.py with live calls.
+  See: https://capev2.readthedocs.io/  and  https://cuckoo.readthedocs.io/
+
+
+================================================================================
+  9. ENVIRONMENT VARIABLES  (reference)
+================================================================================
+  FRONTEND  (frontend/.env — copy from .env.example):
+    VITE_USE_BACKEND=false          # true = call the FastAPI backend
+    VITE_API_BASE_URL=/api
+    VITE_APP_NAME="Aegis Sandbox AI"
+
+  BACKEND  (backend/.env — copy from .env.example):
+    ENVIRONMENT=development
+    DATABASE_URL=sqlite:///./aegis.db        # or postgresql+psycopg2://...
+    REDIS_URL=redis://localhost:6379/0
+    USE_REAL_LLM=false                        # true = call a real LLM
+    AI_MODEL=aegis-analyst-v2
+    OPENAI_API_KEY=                           # optional
+    ANTHROPIC_API_KEY=                        # optional
+    VIRUSTOTAL_API_KEY=                       # optional
+    OTX_API_KEY=                              # optional
+    ABUSEIPDB_API_KEY=                        # optional
+    CORS_ORIGINS=http://localhost:5173,http://localhost:8080
+
+
+================================================================================
+  10. API KEYS  (all OPTIONAL — the prototype works with none)
+================================================================================
+  If you want to enable REAL enrichment / AI later, get free keys from:
+    • VirusTotal ...... https://www.virustotal.com/gui/my-apikey
+    • AlienVault OTX .. https://otx.alienvault.com/api
+    • AbuseIPDB ....... https://www.abuseipdb.com/account/api
+    • OpenAI .......... https://platform.openai.com/api-keys
+    • Anthropic ....... https://console.anthropic.com/
+  Paste them into backend/.env. Leave blank to use the built-in simulator.
+
+
+================================================================================
+  11. HOW TO TEST  (verify each piece works)
+================================================================================
+  FRONTEND builds and type-checks:
+    cd frontend
+    npm run build            # expect "built in ..." with no errors
+
+  BACKEND responds:
+    (with the backend running)
+    curl http://localhost:8000/api/health
+    curl http://localhost:8000/api/investigations
+    curl http://localhost:8000/api/dashboard/stats
+
+  DOCKER stack is healthy:
+    docker compose ps        # all services "running"/"healthy"
+
+
+================================================================================
+  12. HOW TO STOP EVERYTHING
+================================================================================
+  • Frontend / Backend (dev):   press  Ctrl + C  in each terminal.
+  • Deactivate Python venv:     deactivate
+  • Docker (keep data):         docker compose down
+  • Docker (wipe DB volume):    docker compose down -v
+
+
+================================================================================
+  13. COMMON TROUBLESHOOTING
+================================================================================
+
+  Q: "npm install" fails or is slow.
+  A: Ensure Node.js 20 (node -v). Delete node_modules and package-lock.json,
+     then run  npm install  again. Behind a proxy? configure npm proxy settings.
+
+  Q: Port 5173 (or 8000/8080/5432) is already in use.
+  A: Something else is using it. Stop that app, or change the port:
+       Frontend: npm run dev -- --port 5174
+       Backend:  uvicorn app.main:app --reload --port 8001
+
+  Q: PowerShell: "running scripts is disabled" when activating the venv.
+  A: Run once in an elevated PowerShell:
+       Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+     Then re-run  .\.venv\Scripts\Activate.ps1
+
+  Q: Backend errors like "unexpected keyword argument 'on_startup'".
+  A: You installed into a global environment with clashing library versions.
+     Always use the virtual environment (section 4) so the PINNED versions in
+     requirements.txt are used. Recreate it:
+       Windows:  rmdir /s /q .venv  &&  python -m venv .venv
+       Linux:    rm -rf .venv       &&  python3 -m venv .venv
+
+  Q: Python 3.14 gives dependency errors.
+  A: Use Python 3.12 (or 3.11). Some libraries do not yet ship wheels for 3.14.
+
+  Q: "docker compose" says the daemon is not running.
+  A: Start Docker Desktop first and wait until it says "Engine running".
+
+  Q: The map / charts look empty for a second.
+  A: That's the loading animation — data renders immediately after. Refresh if needed.
+
+  Q: Blank page after login.
+  A: Hard-refresh (Ctrl+Shift+R). Ensure you opened http://localhost:5173 (not file://).
+
+  Q: PDF export.
+  A: On the Report page click "Export PDF" — it opens the browser print dialog;
+     choose "Save as PDF". The report is print-styled (sidebar/topbar hidden).
+
+
+================================================================================
+  14. WHERE THINGS LIVE  (quick map)
+================================================================================
+  frontend/src/pages/            → every screen (Login, Dashboard, analysis/*)
+  frontend/src/data/             → the mock dataset powering the whole demo
+  frontend/src/components/        → ui primitives, layout, shared widgets
+  backend/app/routers/            → REST endpoints
+  backend/app/data/mock_data.py   → backend copy of the simulated dataset
+  backend/app/ai/engine.py        → AI verdict engine (simulator ⇄ LLM)
+  database/init.sql               → PostgreSQL schema
+  docker-compose.yml              → full-stack orchestration
+
+================================================================================
+  Enjoy the demo. For a live presentation, run just the FRONTEND (section 3).
+================================================================================

@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Aegis Sandbox AI — full-stack development topology
+#
+#  Usage:  docker compose up --build
+#  Frontend:  http://localhost:8080
+#  Backend :  http://localhost:8000/docs
+# ═══════════════════════════════════════════════════════════════════════════
+services:
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: aegis-db
+    environment:
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: aegis
+      POSTGRES_DB: aegis
+    ports:
+      - "5432:5432"
+    volumes:
+      - aegis-pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (Celery broker / cache) ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: aegis-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI backend ───────────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: aegis-backend
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+psycopg2://aegis:aegis@db:5432/aegis
+      REDIS_URL: redis://redis:6379/0
+      USE_REAL_LLM: "false"
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── React frontend (nginx) ────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: aegis-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  aegis-pgdata:

@@ -1,0 +1,136 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: theme("colors.border");
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-canvas text-foreground font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* Layered radial glows + subtle grid = "SOC console" backdrop */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34, 211, 238, 0.08), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 100% 0%, rgba(99, 102, 241, 0.07), transparent 55%),
+      linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background: rgba(34, 211, 238, 0.28);
+    color: #ecfeff;
+  }
+
+  /* Scrollbars — thin, dark, on-brand */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.18);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.32);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* Frosted panel — the workhorse surface of the whole app */
+  .panel {
+    @apply rounded-xl border border-border bg-surface/70 backdrop-blur-xl shadow-card;
+  }
+  .panel-raised {
+    @apply rounded-xl border border-border bg-surface-raised/80 backdrop-blur-xl shadow-card;
+  }
+
+  .stat-tile {
+    @apply relative overflow-hidden rounded-xl border border-border bg-surface/70 p-5 backdrop-blur-xl;
+  }
+
+  /* Severity pill helpers */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium;
+  }
+
+  .mono {
+    @apply font-mono text-[0.8125rem] tracking-tight;
+  }
+
+  /* Animated top hairline used on hero cards */
+  .hairline-top::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-px;
+    background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.6), transparent);
+  }
+
+  /* Thin gradient scanline overlay for the "sandbox VM" feel */
+  .scanlines::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(148, 163, 184, 0.035) 0px,
+      rgba(148, 163, 184, 0.035) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+  .grid-fade-mask {
+    -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent);
+    mask-image: linear-gradient(to bottom, black 60%, transparent);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+  aside,
+  header {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

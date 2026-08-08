@@ -1,0 +1,7 @@
+__pycache__
+*.pyc
+.env
+aegis.db
+.venv
+venv
+.pytest_cache
