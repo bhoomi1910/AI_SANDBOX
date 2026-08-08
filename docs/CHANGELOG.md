@@ -6,6 +6,49 @@ The project follows a version-based development approach, where each release int
 
 ---
 
+# Development Log (real history)
+
+## 2026-08-09 — Phase 1: Stabilization (project root = `Desktop\AI Sandbox`)
+
+### Added
+- SQLite persistence layer: `backend/app/database.py`, `backend/app/models.py`
+  (`Investigation` record matching the frontend `Investigation` type), `init_db`
+  startup lifecycle.
+- Secure sample upload: streaming size limit (100 MiB, 413 if exceeded), empty
+  upload rejection (422), filename sanitisation + UUID storage names, SHA-256 /
+  MD5 / SHA-1 computed at write time (`backend/app/services/storage.py`).
+- DB-backed routers: `GET /api/investigations` (status filter), `GET
+  /api/investigations/{id}`, `GET /api/dashboard/stats`, `POST /api/samples/upload`.
+- 12 pytest tests (`backend/tests/`) running against an isolated temp database.
+- Frontend API client `frontend/src/lib/api.ts` with `VITE_USE_BACKEND` /
+  `VITE_API_BASE_URL` switches; Dashboard, Queue and Upload pages wired to live
+  data with an automatic demo-data fallback.
+- `backend/pytest.ini`, canonical pinned `backend/requirements.txt`.
+
+### Changed
+- Backend rebranded to "AI-Powered Intelligent Sandbox"; config moved to
+  `BACKEND_DIR/aegis.db`, added Ollama/upload/report settings.
+- Case IDs are generated `INV-YYYY-NNNN`.
+- Upload page replaces the simulated progress + hardcoded case ID with a real
+  upload; "detonation" copy replaced with static-analysis copy.
+
+### Removed
+- `backend/app/data/mock_data.py`, `backend/app/ai/engine.py`, stale duplicate
+  `backend/main.py` and `backend/routes/upload.py`, UTF-16 root `requirements.txt`.
+
+### Fixed
+- Backend boot failure (`pydantic_settings` missing) — backend now runs and all
+  endpoints respond 200.
+- Git repo initialized correctly at the project root with a clean baseline.
+- Docs consolidated into `AI Sandbox\docs\`.
+
+### Known issues (not yet fixed)
+- `npm run lint` still broken (`eslint` not in devDependencies).
+- Deep-dive analysis pages (static/dynamic/network/intel/mitre/ai/report) still
+  render mock content; backend endpoints return "pending" until their phases land.
+
+---
+
 # Versioning Strategy
 
 The project follows **Semantic Versioning (SemVer)**.

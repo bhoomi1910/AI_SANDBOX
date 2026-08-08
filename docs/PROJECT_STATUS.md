@@ -6,6 +6,34 @@
 
 ---
 
+## 0. Current Status (Phase 1 — Stabilization) — updated 09 Aug 2026
+
+**Decision (user):** the project root is `Desktop\AI Sandbox` (the former "Aegis Sandbox AI"
+prototype). The prototype's UI is kept; its backend has been rebuilt on a real SQLite layer.
+
+**Working now (verified end-to-end):**
+- Backend boots (`uvicorn app.main:app`) with `init_db` startup. All endpoints return 200.
+- `POST /api/samples/upload` streams the file to `uploads/`, enforces the 100 MiB limit,
+  rejects empty files, sanitises filenames, computes SHA-256/MD5/SHA-1, and creates an
+  `INV-YYYY-NNNN` investigation row.
+- `GET /api/investigations` (with `?status=` filter), `GET /api/investigations/{id}`,
+  `GET /api/dashboard/stats` serve live DB data.
+- 12 pytest tests pass against an isolated temp DB (`python -m pytest` in `backend/`).
+- Frontend Dashboard, Queue and Upload pages are wired to the backend with a demo-data
+  fallback (`VITE_USE_BACKEND`, `VITE_API_BASE_URL`). `npm run build` passes.
+
+**Run it:** terminal A — `cd backend && ../venv/Scripts/python -m uvicorn app.main:app --reload`;
+terminal B — `cd frontend && npm run dev`. Open http://localhost:5173.
+
+**Still to do (by phase):** static analysis engine (P2), threat detection/YARA/MITRE (P3),
+AI/Ollama verdict (P4), reporting/history (P5). Deep-dive pages still render mock content;
+backend returns structured "pending" payloads for those endpoints until their modules land.
+
+**Known issues:** `npm run lint` broken (eslint not installed); Docker not installed; Ollama
+not installed (`ai_model=qwen3` is a default, not verified).
+
+---
+
 ## 1. Executive Summary
 
 The repository currently contains **design documentation only**. The working directory
