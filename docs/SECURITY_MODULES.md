@@ -401,22 +401,29 @@ Extract Indicators of Compromise (IOCs) from uploaded files.
 
 ---
 
-## Supported IOCs
+## Supported IOCs (implemented — Phase 3)
 
-- IP Addresses
-- Domains
-- URLs
+- IP Addresses (IPv4 + IPv6, validated octet-by-octet)
+- Domains (with file-extension false-positive filtering)
+- URLs (including defanged `evil[.]example` restoration)
 - Email Addresses
 - Registry Keys
-- File Paths
-- Cryptographic Hashes
-
-Future
-
-- Wallet Addresses
+- Windows File Paths
+- Cryptographic Hashes (MD5 / SHA-1 / SHA-256)
+- Commands (cmd / PowerShell / LOLBins)
 - Mutexes
-- User Agents
-- API Keys
+
+### False-positive controls
+
+- Version-like numbers are never treated as IPs (`1.999.999.999` is rejected).
+- Domains ending in a common file extension are rejected (`update.exe`, `kernel32.dll`).
+- Private/loopback IPs keep a reduced confidence.
+
+### Deduplication & provenance
+
+The same IOC observed by several modules (strings, YARA, analyzers) is stored
+once. Every IOC carries `sources` (module + evidence id + context), a `count`,
+and a confidence that rises slightly with corroboration.
 
 ---
 
@@ -461,6 +468,23 @@ Calculate an overall risk score based on multiple security indicators.
 
 ---
 
+## Scoring method (implemented — Phase 3, deterministic)
+
+- Each finding carries a fixed weight: critical 25 / high 15 / medium 7 /
+  low 2 / info 0.
+- **Per-category dedup:** within one category only the strongest finding's
+  weight counts. Ten YARA hits are one signal, not ten — cross-category
+  signals (injection + downloader + persistence) still stack.
+- Whole-file entropy adds a bounded bonus (3 if ≥ 7.0, 5 if ≥ 7.5).
+- The reported severity is the worst single indicator.
+- Verdict thresholds are frozen:
+  - `malicious`: total ≥ 60 OR worst indicator == critical
+  - `suspicious`: total ≥ 25 OR (worst indicator == high AND total ≥ 15)
+  - `clean`: otherwise (static evidence only — never a guarantee)
+- A high indicator therefore never produces a "clean" verdict.
+
+---
+
 # Threat Intelligence (Future)
 
 The platform will support optional integration with external threat intelligence services.
@@ -482,17 +506,90 @@ These integrations will enrich investigation results without being required for 
 
 Map suspicious findings to the MITRE ATT&CK framework.
 
-Example mappings include:
+---
 
-- Initial Access
-- Execution
-- Persistence
-- Defense Evasion
-- Discovery
-- Credential Access
-- Command and Control
+## Implementation (Phase 3 — evidence-backed)
 
-This helps analysts understand the tactics and techniques that may be associated with a suspicious file.
+A built-in catalog covers 22 techniques across the tactics most relevant to
+static triage. Every emitted mapping must be supported by deterministic
+evidence — no technique is invented because a model "thinks" it is plausible.
+Phase 4 AI may only *explain* mappings that already exist.
+
+### How a mapping is produced
+
+1. Analyzer findings are attached to a technique via `mitre` metadata or the
+   category→technique table (e.g. `process-injection` → T1055,
+   `registry-persistence` → T1547.001, `pdf-javascript` → T1059.007).
+2. Detection rules correlate evidence and emit capability findings with a
+   technique (PowerShell T1059.001, downloader T1105, network T1071, …).
+3. `build_mitre` aggregates findings per technique with:
+   - `confidence` = strongest contributing finding,
+   - `severity` = worst indicator,
+   - `provenance` = finding count, source modules and observed evidence,
+   - `evidence` snippets the analyst can inspect.
+
+### Confidence semantics
+
+| Range | Meaning |
+|-------|---------|
+| 0.90 – 1.00 | direct observation (PE import, YARA match, exact string) |
+| 0.70 – 0.85 | strong derived correlation (rule over multiple evidence) |
+| 0.50 – 0.65 | moderate inference (generic network strings) |
+| < 0.50 | speculative — avoided |
+
+---
+
+# Phase 3 — Detection & Evidence Engine
+
+The deterministic layer between raw static output and the AI engine. It turns
+analyzer output into an explainable assessment:
+
+```
+static/raw analysis
+  -> normalized EVIDENCE (observed)
+  -> IOCs (deduplicated, provenance-preserving)
+  -> findings enriched + correlated (derived)
+  -> MITRE mappings (evidence-backed, inferred)
+  -> investigation GRAPH (why the verdict is what it is)
+```
+
+## Evidence model
+
+Three distinct concepts are never conflated:
+
+| Kind | Meaning | Example |
+|------|---------|---------|
+| OBSERVED evidence | directly extracted, normalized | string, URL, PE import, YARA hit |
+| DERIVED findings | rules over evidence | "PowerShell with obfuscation" |
+| INFERRED technique | MITRE mapping backed by findings | T1055 via injection APIs |
+
+Evidence entries carry `id`, `category`, `type`, `value`, `source_module`,
+`severity`, `confidence`, `description`, `evidence`, `mitre_techniques` and
+`metadata`. The list is capped (250) to keep payloads bounded.
+
+## Detection rules
+
+Rules fire only on real evidence (never on the mere fact a file is
+executable). A rule is skipped when the analyzer already reported its
+category, so the finding list stays noise-free. Examples: PowerShell execution
+(T1059.001), command shell / LOLBins (T1059.003), downloader (T1105), network
+communication (T1071), registry Run-key persistence (T1547.001), service
+persistence (T1543.003), obfuscation (T1027), sandbox evasion (T1497),
+credential access (T1555), remote access (T1219), masquerading (T1036).
+
+## Investigation graph
+
+A provenance graph connects the file → evidence → IOCs / findings → MITRE
+techniques with typed edges (`contains`, `indicates`, `yields`,
+`supported_by`, `maps_to`), capped at 160 nodes / 320 edges.
+
+## Failure isolation
+
+- YARA-lite isolates per rule and per file: one malformed rule (bad hex,
+  unsupported condition) is logged and skipped; it never aborts the scan.
+- Detection tolerates missing or empty analyzer sections.
+- Every analysis module fails independently; a module error never aborts the
+  pipeline.
 
 ---
 
@@ -570,19 +667,22 @@ The Security Engine follows several key principles:
 | Module | Status |
 |---------|--------|
 | File Upload | ✅ Implemented |
-| File Validation | 🚧 Planned |
-| File Type Detection | 🚧 Planned |
-| Metadata Extraction | 🚧 Planned |
-| SHA-256 Hashing | 🚧 Planned |
-| Static Analysis | 🚧 Planned |
-| String Extraction | 🚧 Planned |
-| Entropy Analysis | 🚧 Planned |
-| Digital Signature Verification | 🚧 Planned |
-| YARA Scanner | 🚧 Planned |
-| IOC Extraction | 🚧 Planned |
-| Threat Score Engine | 🚧 Planned |
-| MITRE Mapping | 📅 Future |
-| Threat Intelligence | 📅 Future |
+| File Validation | ✅ Implemented |
+| File Type Detection | ✅ Implemented |
+| Metadata Extraction | ✅ Implemented |
+| SHA-256 Hashing | ✅ Implemented |
+| Static Analysis | ✅ Implemented |
+| String Extraction | ✅ Implemented |
+| Entropy Analysis | ✅ Implemented |
+| Digital Signature Verification | ✅ Implemented |
+| YARA Scanner | ✅ Implemented |
+| IOC Extraction | ✅ Implemented (Phase 3) |
+| Threat Score Engine | ✅ Implemented (Phase 3, deduplicated) |
+| Detection Rules & Evidence | ✅ Implemented (Phase 3) |
+| MITRE Mapping | ✅ Implemented (Phase 3, evidence-backed) |
+| Investigation Graph | ✅ Implemented (Phase 3) |
+| Threat Intelligence | 📅 Future (external feeds) |
+| AI Interpretation | 📅 Future (Phase 4) |
 
 ---
 

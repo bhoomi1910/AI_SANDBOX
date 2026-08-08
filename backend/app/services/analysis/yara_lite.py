@@ -17,10 +17,13 @@ Rules are loaded from backend/rules/*.yar.
 """
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 
 RULES_DIR = Path(__file__).resolve().parents[3] / "rules"  # backend/rules
+
+logger = logging.getLogger(__name__)
 
 
 class RuleParseError(Exception):
@@ -56,7 +59,10 @@ class _Rule:
 def load_rules(directory: Path = RULES_DIR) -> list[_Rule]:
     rules = []
     for yar in sorted(directory.glob("*.yar")):
-        rules.extend(parse_rules(yar.read_text(encoding="utf-8", errors="replace")))
+        try:
+            rules.extend(parse_rules(yar.read_text(encoding="utf-8", errors="replace")))
+        except Exception as exc:  # one bad file must not kill the rule set
+            logger.warning("skipping YARA file %s: %s", yar.name, exc)
     return rules
 
 
@@ -64,13 +70,17 @@ def parse_rules(source: str) -> list[_Rule]:
     rules = []
     for block in re.finditer(r"rule\s+(\w+)\s*\{", source):
         name = block.group(1)
-        start = block.end()
-        end = _find_rule_end(source, start)
-        body = source[start:end]
-        meta = _parse_meta(body)
-        strings, ident_map = _parse_strings(body)
-        cond_tokens = _tokenize_condition(_extract_condition(body))
-        rules.append(_Rule(name, meta, strings, cond_tokens))
+        try:
+            start = block.end()
+            end = _find_rule_end(source, start)
+            body = source[start:end]
+            meta = _parse_meta(body)
+            strings, ident_map = _parse_strings(body)
+            cond_tokens = _tokenize_condition(_extract_condition(body))
+            _eval_condition(cond_tokens, set(), len(strings))  # syntax gate
+            rules.append(_Rule(name, meta, strings, cond_tokens))
+        except Exception as exc:  # one malformed rule must not kill the rule set
+            logger.warning("skipping malformed YARA rule %s: %s", name, exc)
     return rules
 
 
@@ -153,6 +163,10 @@ def _regex_matcher(spec: str) -> callable:
 
 
 def _hex_matcher(spec: str) -> callable:
+    spec = spec.strip().strip("{}")
+    leftover = re.sub(r"[0-9a-fA-F]{2}|\?\?|\s", "", spec)
+    if leftover:
+        raise ValueError(f"malformed hex string near: {leftover[:20]}")
     tokens = re.findall(r"[0-9a-fA-F]{2}|\?\?", spec)
     pattern = b""
     parts = []
@@ -177,7 +191,14 @@ def _is_alnum(b: int) -> bool:
 
 def _extract_condition(body: str) -> str:
     m = re.search(r"condition:\s*(.*)$", body, re.DOTALL)
-    return m.group(1) if m else "any of them"
+    cond = m.group(1) if m else "any of them"
+    # Expand the YARA `any of ($a,$b)` / `all of ($a,$b)` sugar into boolean
+    # expressions the tokenizer already understands.
+    cond = re.sub(r"(?i)any of\s*\(([^)]*)\)",
+                  lambda m: "(" + " or ".join(t.strip() for t in m.group(1).split(",")) + ")", cond)
+    cond = re.sub(r"(?i)all of\s*\(([^)]*)\)",
+                  lambda m: "(" + " and ".join(t.strip() for t in m.group(1).split(",")) + ")", cond)
+    return cond
 
 
 def _tokenize_condition(cond: str) -> list:
@@ -187,17 +208,21 @@ def _tokenize_condition(cond: str) -> list:
 def match_file(rules: list[_Rule], data: bytes) -> list[dict]:
     hits = []
     for rule in rules:
-        matched = {ident for ident, matcher in rule.strings if matcher(data)}
-        if _eval_condition(rule.condition, matched, len(rule.strings)):
-            hits.append({
-                "rule": rule.name,
-                "description": rule.description(),
-                "severity": rule.severity,
-                "tags": rule.tags(),
-                "author": rule.author(),
-                "mitre": rule.mitre(),
-                "matchedStrings": sorted(matched),
-            })
+        try:
+            # identifiers are stored without the '$'; conditions reference '$a'
+            matched = {f"${ident}" for ident, matcher in rule.strings if matcher(data)}
+            if _eval_condition(rule.condition, matched, len(rule.strings)):
+                hits.append({
+                    "rule": rule.name,
+                    "description": rule.description(),
+                    "severity": rule.severity,
+                    "tags": rule.tags(),
+                    "author": rule.author(),
+                    "mitre": rule.mitre(),
+                    "matchedStrings": sorted(matched),
+                })
+        except Exception as exc:  # a failing matcher must not abort the whole scan
+            logger.warning("rule %s failed during matching: %s", rule.name, exc)
     return hits
 
 
@@ -241,8 +266,7 @@ def _eval_condition(tokens: list, matched: set[str], total: int) -> bool:
         if tok.startswith("$"):
             pos += 1
             return tok in matched
-        pos += 1
-        return True
+        raise ValueError(f"unsupported condition token: {tok}")
 
     return parse_expr()
 

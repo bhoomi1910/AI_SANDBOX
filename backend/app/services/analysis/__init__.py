@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import AnalysisResult, Investigation, utcnow
+from app.services import detection as detection_mod
 from app.services.analysis import entropy as entropy_mod
 from app.services.analysis import filetype as ft_mod
 from app.services.analysis import office as office_mod
@@ -119,9 +120,23 @@ def run_static_analysis(inv_id: str) -> None:
         for hit in yara_hits:
             findings.append(_yara_finding(hit))
 
-        score = score_mod.compute_score(findings, whole_entropy)
-
         static = _build_static(whole_entropy, extracted_strings, yara_hits, per_family)
+
+        # Phase 3 — Detection & Evidence Engine: normalize evidence, extract
+        # IOCs, correlate findings, map MITRE techniques, build provenance graph.
+        det = detection_mod.run_detection({
+            "file": {
+                "filename": inv.filename,
+                "extension": Path(inv.filename).suffix or "",
+                "family": family,
+                "file_type": detected["file_type"],
+                "sha256": inv.sha256,
+            },
+            "static": static,
+            "findings": findings,
+        })
+        findings = det["findings"]
+        score = score_mod.compute_score(findings, whole_entropy)
 
         tags = sorted({f["category"] for f in findings if f.get("severity") in ("medium", "high", "critical")})
         mitre = sorted({f["mitre"] for f in findings if f.get("mitre")})
@@ -137,7 +152,10 @@ def run_static_analysis(inv_id: str) -> None:
             "static": static,
             "findings": findings,
             "score": score,
-            "iocs": [],
+            "evidence": det["evidence"],
+            "iocs": det["iocs"],
+            "mitre": det["mitre"],
+            "graph": det["graph"],
             "classification": classification,
             "malware_family": "Unknown",
             "tags": tags,
@@ -217,7 +235,7 @@ def _build_static(entropy: float, strings: list[dict], yara_hits: list[dict], pe
         "yara": yara_hits,
         "capabilities": [],
     }
-    for key in ("compiler", "packer", "arch", "subsystem", "timestamp", "imphash", "signatureStatus", "sections", "imports", "capabilities"):
+    for key in ("compiler", "packer", "arch", "subsystem", "timestamp", "imphash", "signatureStatus", "sections", "imports", "capabilities", "metadata"):
         if per_family.get(key):
             static[key] = per_family[key]
     return static

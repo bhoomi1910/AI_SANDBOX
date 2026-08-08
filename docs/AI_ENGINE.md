@@ -299,7 +299,12 @@ YARA Results
 
 ↓
 
-IOC Extraction
+Detection & Evidence Engine (Phase 3)
+- normalized evidence
+- IOC extraction
+- correlated findings
+- evidence-backed MITRE mappings
+- provenance graph
 
 ↓
 
@@ -329,6 +334,20 @@ Database
 
 Dashboard
 ```
+
+---
+
+## Phase 3 boundary — the AI explains, it does not invent
+
+Phase 3 delivers a fully deterministic Detection & Evidence Engine (evidence
+normalization, IOC extraction, correlation rules, evidence-backed MITRE
+mappings, provenance graph). Every verdict, score and technique mapping can be
+traced back to concrete evidence without any model in the loop.
+
+Phase 4 (Ollama) will only **explain** results the deterministic engine already
+produced. The AI must not invent findings, IOCs or MITRE techniques that the
+engine did not observe — it interprets and summarizes, it never creates
+detections.
 
 ---
 
@@ -587,7 +606,8 @@ Display Dashboard
 | Feature | Status |
 |---------|--------|
 | AI Module Architecture | ✅ Completed |
-| Ollama Integration Design | ✅ Planned |
+| Detection & Evidence Engine (Phase 3) | ✅ Completed |
+| Ollama Integration Design | 🔄 Planned |
 | Prompt Engineering | 🚧 Planned |
 | Executive Summary | 🚧 Planned |
 | Technical Summary | 🚧 Planned |

@@ -44,8 +44,76 @@ The project follows a version-based development approach, where each release int
 
 ### Known issues (not yet fixed)
 - `npm run lint` still broken (`eslint` not in devDependencies).
-- Deep-dive analysis pages (static/dynamic/network/intel/mitre/ai/report) still
-  render mock content; backend endpoints return "pending" until their phases land.
+- AI analysis (Ollama) and report generation remain Phase 4+.
+
+---
+
+## 2026-08-09 — Phase 2: Static Analysis Engine
+
+### Added
+- Analyzer pipeline in `backend/app/services/analysis/`: `analysis_types.py`
+  (enums + capability flags), `static_analyzer.py` (per-type dispatch with
+  per-analyzer failure isolation), `strings.py` (offset-annotated ASCII/UTF-16
+  extraction, configurable limits), `entropy.py`, `pe.py` (headers, sections,
+  imports, exports, resources, compilation time, suspicious API heuristics),
+  `office.py`, `pdf.py`, `image.py`, `yara_lite.py`, `score.py`.
+- PE analysis features: AnomalyScore, ImportScore, SuspiciousImports,
+  XOR/SIP spam heuristics, entropy-per-section, SHA256 fingerprint.
+- Office analysis: embedded objects, external links, VBA detection, DDE.
+- PDF analysis: document metadata + page count, action/stream heuristics.
+- File-type detection (`file_type.py`) wired into the analysis pipeline.
+- Frontend: `StaticAnalysis.tsx` and `Mitre.tsx` connected to the backend.
+- 29 additional pytest tests covering analyzers and the API.
+
+### Changed
+- Analysis now runs synchronously during the upload request lifecycle.
+- Static analysis results persisted to the investigation record.
+
+---
+
+## 2026-08-09 — Phase 3: Detection & Evidence Engine
+
+### Added
+- Deterministic detection layer `backend/app/services/detection/`:
+  - `evidence.py` — normalized, deduplicated evidence model (observed vs
+    derived vs inferred, never conflated), with type metadata and limits.
+  - `ioc.py` — IOC extraction (URL, domain, IP v4/v6, email, hash, registry,
+    Windows path, command, mutex) with false-positive controls, defang
+    normalization, and provenance-preserving dedup.
+  - `rules.py` — 11 detection rules (PowerShell, command shell, downloader,
+    network, persistence, obfuscation, sandbox evasion, credential access,
+    remote access, masquerading) with confidence and MITRE mapping.
+  - `mitre.py` — evidence-backed MITRE ATT&CK aggregation (22 techniques)
+    with confidence, severity and provenance; no hardcoded technique lists.
+  - `graph.py` — provenance graph (file → evidence → IOC/finding → technique).
+  - `__init__.py` — `run_detection(ctx)` orchestration.
+- Scoring rewritten in `analysis/score.py`: per-category deduplication, fixed
+  weights, entropy bonus, deterministic severity and verdict (malicious /
+  suspicious / clean).
+- YARA-lite hardening: per-rule/per-file failure isolation, strict hex and
+  condition parsing, `any of (...)` / `all of (...)` expansion, and a fix for
+  `$`-identifier condition matching.
+- New API endpoints: `/findings`, `/iocs`, `/mitre`, `/graph`;
+  `/threat-intel` now returns stored IOCs.
+- Frontend: `api.ts` clients for the new endpoints; `StaticAnalysis.tsx` and
+  `Mitre.tsx` render live detection data with mock fallback.
+- 18 additional pytest tests (IOC, detection, scoring, MITRE, failure
+  isolation, end-to-end detection API) — 47 tests total.
+
+### Changed
+- Orchestrator (`analysis/__init__.py`) now runs detection after static/YARA
+  findings, persists `evidence`/`iocs`/`mitre`/`graph`, and computes the score
+  from detection findings.
+- Docs: `SECURITY_MODULES.md`, `API_DOCUMENTATION.md`, `FEATURES.md`,
+  `AI_ENGINE.md`, `PROJECT_WORKFLOW.md`, `CHANGELOG.md` updated for Phase 3.
+
+### Security
+- Detection is deterministic and fully local; the sample is never executed.
+- Failure isolation: a crashing analyzer or rule never fails the investigation.
+
+### Known issues (not yet fixed)
+- `npm run lint` still broken (`eslint` not in devDependencies).
+- AI analysis (Ollama) and report generation remain Phase 4+.
 
 ---
 
@@ -485,9 +553,9 @@ When contributing to the project:
 | Project Planning | ✅ Completed |
 | Prototype Development | ✅ Completed |
 | Documentation | ✅ Completed |
-| Static Analysis Engine | 🚧 Planned |
+| Static Analysis Engine | ✅ Completed |
+| Threat Detection Modules | ✅ Completed |
 | AI Integration (Ollama) | 🚧 Planned |
-| Threat Detection Modules | 🚧 Planned |
 | Report Generation | 🚧 Planned |
 | Dashboard Analytics | 🚧 Planned |
 | Threat Intelligence Integration | 📅 Future |

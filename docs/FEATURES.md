@@ -149,12 +149,39 @@ The frontend communicates with the backend through REST APIs.
 
 - Upload API
 - Investigation API
+- Static analysis / findings / IOC / MITRE / graph endpoints (Phase 3)
 
 ## Future Improvements
 
 - Authentication
 - Report API
 - Search API
+
+---
+
+# Detection & Evidence Engine (Phase 3)
+
+## Description
+
+A deterministic engine between the static analyzers and the AI layer. It
+normalizes raw analyzer output into evidence, extracts IOCs, correlates
+findings, maps MITRE techniques and builds a provenance graph.
+
+## Capabilities
+
+- Normalized evidence model (observed vs derived vs inferred never conflated)
+- IOC extraction with false-positive control and provenance-preserving dedup
+- Detection rules over evidence (PowerShell, downloader, persistence, …)
+- Evidence-backed MITRE ATT&CK mappings with confidence + provenance
+- Investigation provenance graph (file → evidence → IOC/finding → technique)
+- Per-category deduplicated threat scoring with consistent severity/verdict
+
+## Benefits
+
+- Explainable verdicts
+- Deterministic and reproducible scores
+- No false weighting of repeated signals
+- Safe, offline, fully local analysis
 
 ---
 
@@ -587,24 +614,26 @@ A conversational assistant capable of answering questions such as:
 | SQLite Database | ✅ Completed |
 | Docker Support | ✅ Completed |
 | AI Integration | 🔄 Prototype |
-| Metadata Extraction | 🚧 Planned |
-| SHA-256 Generation | 🚧 Planned |
-| Static Analysis | 🚧 Planned |
-| File Type Detection | 🚧 Planned |
-| PE Analysis | 🚧 Planned |
-| Office Analysis | 🚧 Planned |
-| PDF Analysis | 🚧 Planned |
-| Image Metadata | 🚧 Planned |
-| String Extraction | 🚧 Planned |
-| Entropy Analysis | 🚧 Planned |
-| Digital Signature Verification | 🚧 Planned |
-| YARA Matching | 🚧 Planned |
-| IOC Extraction | 🚧 Planned |
-| Threat Score | 🚧 Planned |
-| MITRE Mapping | 🚧 Planned |
+| Metadata Extraction | ✅ Completed |
+| SHA-256 Generation | ✅ Completed |
+| Static Analysis | ✅ Completed |
+| File Type Detection | ✅ Completed |
+| PE Analysis | ✅ Completed |
+| Office Analysis | ✅ Completed |
+| PDF Analysis | ✅ Completed |
+| String Extraction | ✅ Completed |
+| Entropy Analysis | ✅ Completed |
+| Digital Signature Verification | ✅ Completed |
+| YARA Matching | ✅ Completed |
+| IOC Extraction | ✅ Completed (Phase 3) |
+| Threat Score | ✅ Completed (Phase 3, deduplicated) |
+| Detection Rules & Evidence | ✅ Completed (Phase 3) |
+| Investigation Graph | ✅ Completed (Phase 3) |
+| MITRE Mapping | ✅ Completed (Phase 3, evidence-backed) |
 | Report Generation | 🚧 Planned |
 | Investigation History | 🚧 Planned |
 | Dashboard Analytics | 🚧 Planned |
+| Image Metadata | 📅 Future |
 | VirusTotal Integration | 📅 Future |
 | MalwareBazaar Integration | 📅 Future |
 | AI Chat Assistant | 📅 Future |

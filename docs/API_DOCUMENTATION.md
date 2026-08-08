@@ -229,7 +229,7 @@ file
 ### Endpoint
 
 ```
-GET /investigations
+GET /api/investigations
 ```
 
 Returns every investigation.
@@ -256,10 +256,167 @@ Returns every investigation.
 ### Endpoint
 
 ```
-GET /investigations/{id}
+GET /api/investigations/{id}
 ```
 
 Returns complete investigation information.
+
+---
+
+## Static Analysis
+
+### Endpoint
+
+```
+GET /api/investigations/{id}/static
+```
+
+Returns the stored analysis payload: file type, `static` (strings, YARA,
+sections, imports, capabilities, metadata), `findings`, `score`, `evidence`,
+`iocs`, `mitre`, `graph`, `classification`, `tags`, `modules` and the module
+health map.
+
+---
+
+## Findings (Phase 3)
+
+### Endpoint
+
+```
+GET /api/investigations/{id}/findings
+```
+
+Returns derived findings: analyzer findings enriched with `confidence`,
+`mitre` and `evidence_ids`, plus rule-correlated detections, de-duplicated for
+display.
+
+```json
+{
+  "status": "completed",
+  "investigation": "INV-2026-0001",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "powershell",
+      "title": "PowerShell execution with obfuscation/execution primitives",
+      "confidence": 0.85,
+      "mitre": "T1059.001",
+      "mitre_techniques": ["T1059.001"],
+      "evidence_ids": ["ev-0002", "ev-0003"],
+      "module": "detection:powershell"
+    }
+  ]
+}
+```
+
+---
+
+## IOCs (Phase 3)
+
+### Endpoint
+
+```
+GET /api/investigations/{id}/iocs
+```
+
+Returns de-duplicated indicators with source provenance.
+
+```json
+{
+  "status": "completed",
+  "investigation": "INV-2026-0001",
+  "iocs": [
+    {
+      "id": "ioc-0001",
+      "type": "url",
+      "value": "http://evil.example/payload.bin",
+      "severity": "medium",
+      "confidence": 0.83,
+      "sources": [
+        {"module": "strings", "evidence_id": "ev-0002", "context": "http://evil.example/payload.bin"}
+      ],
+      "count": 2,
+      "mitre_techniques": ["T1071"]
+    }
+  ]
+}
+```
+
+---
+
+## MITRE ATT&CK (Phase 3)
+
+### Endpoint
+
+```
+GET /api/investigations/{id}/mitre
+```
+
+Returns evidence-backed technique mappings.
+
+```json
+{
+  "status": "completed",
+  "investigation": "INV-2026-0001",
+  "techniques": [
+    {
+      "technique_id": "T1055",
+      "technique": "Process Injection",
+      "tactic": "Defense Evasion",
+      "confidence": 0.9,
+      "severity": "high",
+      "source_modules": ["pe"],
+      "findings": ["Process injection APIs imported"],
+      "evidence": ["VirtualAllocEx + WriteProcessMemory"],
+      "provenance": {"finding_count": 1, "source_modules": ["pe"], "evidence_observed": []}
+    }
+  ]
+}
+```
+
+---
+
+## Investigation Graph (Phase 3)
+
+### Endpoint
+
+```
+GET /api/investigations/{id}/graph
+```
+
+Returns the provenance graph: `nodes` (file / evidence / ioc / finding /
+technique) and typed `edges` (`contains`, `indicates`, `yields`,
+`supported_by`, `maps_to`).
+
+```json
+{
+  "status": "completed",
+  "graph": {
+    "nodes": [{"id": "file:abc…", "kind": "file", "label": "update.ps1", "severity": "info"}],
+    "edges": [{"source": "file:abc…", "target": "ev-0001", "type": "contains"}],
+    "stats": {"evidence": 8, "findings": 4, "iocs": 7, "techniques": 4}
+  }
+}
+```
+
+---
+
+## Threat Intel
+
+### Endpoint
+
+```
+GET /api/investigations/{id}/threat-intel
+```
+
+Phase 3 returns the deterministic IOC list. External threat-intel feeds are
+future work.
+
+```
+GET /api/investigations/{id}/ai
+```
+
+AI deep-dive returns `unavailable` until the Phase 4 engine is configured.
 
 ---
 
@@ -387,48 +544,15 @@ Returns
 
 # IOC API
 
-Future Module
-
----
-
-## Extract Indicators
-
-```
-POST /analysis/ioc
-```
-
-Returns
-
-- URLs
-- Domains
-- IPs
-- Emails
-- Registry Keys
+Implemented in Phase 3 — see `GET /api/investigations/{id}/iocs` above.
 
 ---
 
 # Threat Score API
 
-Future Module
-
----
-
-## Calculate Threat Score
-
-```
-POST /analysis/threat-score
-```
-
-Returns
-
-```json
-{
-    "score":72,
-    "risk":"High"
-}
-```
-
----
+Implemented — the threat score is computed by the scoring engine and returned
+inside `GET /api/investigations/{id}/static` (the `score` object with
+`total`, `severity`, `verdict` and `breakdown`).
 
 # AI Analysis API
 
@@ -466,30 +590,10 @@ Returns
 
 # MITRE Mapping API
 
-Future
+Implemented in Phase 3 — see `GET /api/investigations/{id}/mitre` above.
 
-```
-POST /analysis/mitre
-```
-
-Returns
-
-- Tactics
-- Techniques
-- Procedure IDs
-
-Example
-
-```json
-{
-    "techniques":[
-        "T1059",
-        "T1105"
-    ]
-}
-```
-
----
+Returns evidence-backed mappings with technique ID, name, tactic, confidence,
+severity and provenance.
 
 # Report API
 

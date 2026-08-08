@@ -47,6 +47,25 @@ export const api = {
 
   getInvestigation: (id: string) => request<Investigation>(`/investigations/${id}`),
 
+  getStaticAnalysis: (id: string) =>
+    request<{ status: string; result?: Record<string, unknown> }>(
+      `/investigations/${id}/static`
+    ),
+
+  getFindings: (id: string) =>
+    request<{ status: string; findings?: unknown[] }>(`/investigations/${id}/findings`),
+
+  getIocs: (id: string) =>
+    request<{ status: string; iocs?: unknown[] }>(`/investigations/${id}/iocs`),
+
+  getMitre: (id: string) =>
+    request<{ status: string; techniques?: unknown[] }>(`/investigations/${id}/mitre`),
+
+  getGraph: (id: string) =>
+    request<{ status: string; graph?: { nodes: unknown[]; edges: unknown[] } }>(
+      `/investigations/${id}/graph`
+    ),
+
   uploadSample: async (file: File) => {
     const form = new FormData();
     form.append("file", file);

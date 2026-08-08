@@ -35,16 +35,17 @@ Static Analysis
 YARA Rule Matching
         │
         ▼
-IOC Extraction
+Detection & Evidence Engine
+(evidence, IOC extraction, correlation, graph)
         │
         ▼
 Threat Score Calculation
         │
         ▼
-AI Analysis (Ollama)
+MITRE ATT&CK Mapping
         │
         ▼
-MITRE ATT&CK Mapping
+AI Analysis (Ollama) — Phase 4
         │
         ▼
 Generate Investigation Report
@@ -314,23 +315,50 @@ Threat Indicators
 
 ## Purpose
 
-Indicators of Compromise (IOCs) are extracted from the file.
+Indicators of Compromise (IOCs) are extracted from the file (Phase 3).
 
-Examples include:
+## Implemented Types
 
-- IP Addresses
 - URLs
 - Domains
-- Registry Keys
+- IP Addresses (IPv4 and IPv6)
 - Emails
-- File Paths
-- Hashes
-
-Future versions may also extract:
-
-- Wallet Addresses
+- Registry Keys
+- Windows File Paths
+- Hashes (MD5, SHA-1, SHA-256)
+- Commands
 - Mutexes
-- API Keys
+
+## Implementation Notes
+
+- Extraction scans normalized evidence **and** the raw string pool (the
+  strings classifier alone cannot emit email/hash types).
+- False-positive controls: extension-like "TLDs" are rejected (e.g.
+  `update.exe`, `kernel32.dll`), IPv4 rejects leading zeros and octets > 255,
+  and defanged URLs (`[.]`, `[dot]`) are normalized and restored.
+- Deduplication is provenance-preserving: each IOC carries its `sources`,
+  a confidence boost per YARA source, and a match `count`.
+
+---
+
+# Step 8.5 — Detection & Evidence Engine (Phase 3)
+
+## Purpose
+
+A deterministic engine between the static analyzers and the AI layer.
+
+## What It Produces
+
+- Normalized evidence (observed vs derived vs inferred, never conflated)
+- Correlated, enriched findings with confidence scores
+- Evidence-backed MITRE ATT&CK mappings with provenance
+- A provenance graph (file → evidence → IOC/finding → technique)
+
+## Design
+
+- Rules fire only when the supporting evidence exists (e.g. a downloader
+  needs both a URL and a download primitive).
+- Detection results are deterministic and reproducible — no model in the loop.
 
 ---
 
@@ -338,29 +366,28 @@ Future versions may also extract:
 
 ## Purpose
 
-The platform assigns a numerical threat score based on analysis results.
+The platform assigns a numerical threat score and a verdict based on the
+detection engine's findings (Phase 3).
 
-Example scoring:
+## Scoring Method (deterministic)
 
-| Score | Risk |
-|---------|------|
-| 0–20 | Safe |
-| 21–40 | Low |
-| 41–60 | Medium |
-| 61–80 | High |
-| 81–100 | Critical |
+- Findings are deduplicated per category: repeated findings in the same
+  category count at the category's weight, not once per finding (10 medium
+  findings in one category ≠ 70 points).
+- Weights: critical 25 / high 15 / medium 7 / low 2 / info 0.
+- Entropy bonus: +5 at ≥ 7.5, +3 at ≥ 7.0.
+- Severity = worst indicator across the investigation.
 
----
+## Verdict Rules
 
-## Factors Considered
+| Verdict | Condition |
+|---------|-----------|
+| Malicious | Total ≥ 60, OR worst indicator is critical |
+| Suspicious | Total ≥ 25, OR (worst is high AND total ≥ 15) |
+| Clean | Otherwise |
 
-- YARA Matches
-- Suspicious Strings
-- Entropy
-- File Type
-- Dangerous Imports
-- Embedded Scripts
-- AI Assessment
+**Example:** three distinct high-severity categories (45 points) → Suspicious,
+not Malicious.
 
 ---
 
@@ -398,7 +425,16 @@ The AI does not directly inspect the file. Instead, it interprets the collected 
 
 ## Purpose
 
-The platform maps suspicious behaviors to the MITRE ATT&CK framework.
+The platform maps suspicious behaviors to the MITRE ATT&CK framework
+(implemented in Phase 3, evidence-backed).
+
+## How It Works
+
+- Techniques are aggregated from the detection engine's findings, evidence and
+  IOCs — never from a hardcoded static list.
+- Each technique carries a confidence, the worst observed severity, and
+  provenance (which findings/evidence mapped to it).
+- Only techniques backed by real evidence are emitted.
 
 Example mappings:
 
@@ -410,6 +446,13 @@ Example mappings:
 - Defense Evasion
 
 This helps analysts understand the tactics and techniques associated with the file.
+
+---
+
+## AI Role (Phase 4)
+
+Phase 4's AI layer will only explain these existing mappings. It must not
+invent techniques that the deterministic engine did not observe.
 
 ---
 
