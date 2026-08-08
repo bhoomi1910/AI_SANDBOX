@@ -25,7 +25,7 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, group: "Operations" },
   { label: "Upload Sample", to: "/upload", icon: UploadCloud, group: "Operations" },
-  { label: "Investigation Queue", to: "/queue", icon: ListChecks, group: "Operations", badge: "7" },
+  { label: "Investigation Queue", to: "/queue", icon: ListChecks, group: "Operations" },
   { label: "Static Analysis", to: "/investigation/inv-0412/static", icon: FileSearch, group: "Analysis" },
   { label: "Dynamic Analysis", to: "/investigation/inv-0412/dynamic", icon: Activity, group: "Analysis" },
   { label: "Network Analysis", to: "/investigation/inv-0412/network", icon: Network, group: "Analysis" },

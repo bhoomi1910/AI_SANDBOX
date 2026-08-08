@@ -1,45 +1,24 @@
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
-import {
-  ShieldAlert,
-  Radar,
-  Timer,
-  FlaskConical,
-  ArrowUpRight,
-  Cpu,
-  Server,
-  Rss,
-  ChevronRight,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import { ShieldAlert, Radar, Timer, FlaskConical, ArrowUpRight, Cpu, Server, Rss, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatTile } from "@/components/shared/StatTile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SeverityBadge } from "@/components/ui/badge";
 import { cn, timeAgo } from "@/lib/utils";
+import { api, USE_BACKEND } from "@/lib/api";
 import {
-  dashboardStats,
+  dashboardStats as mockStats,
   trendData,
   malwareFamilies,
-  severityBreakdown,
+  severityBreakdown as mockSeverity,
   threatFeed,
-  systemHealth,
+  systemHealth as mockHealth,
 } from "@/data/dashboard";
-import { investigations, statusMeta } from "@/data/investigations";
+import { investigations as mockRecent, statusMeta } from "@/data/investigations";
 
 const chartTooltip = {
   contentStyle: {
@@ -55,8 +34,28 @@ const chartTooltip = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const recent = investigations.slice(0, 6);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: () => api.dashboardStats(),
+    retry: 1,
+    refetchInterval: 15000,
+    enabled: USE_BACKEND,
+  });
+  const usingDemo = !USE_BACKEND || isError;
+  const stats = usingDemo ? null : data;
+
+  const recent = stats?.recentInvestigations?.length ? stats.recentInvestigations : mockRecent.slice(0, 6);
+  const severityBreakdown = stats?.severityBreakdown?.length ? stats.severityBreakdown : mockSeverity;
+  const systemHealth = stats?.systemHealth?.length ? stats.systemHealth : mockHealth;
   const totalFamilies = malwareFamilies.reduce((s, f) => s + f.value, 0);
+
+  const kpi = {
+    total: stats?.totalInvestigations?.value ?? mockStats.totalInvestigations.value,
+    active: stats?.activeAnalyses?.value ?? mockStats.activeDetonations.value,
+    critical: stats?.criticalAlerts?.value ?? mockStats.criticalAlerts.value,
+    completed: stats?.completedAnalyses?.value ?? 0,
+  };
 
   return (
     <div>
@@ -64,6 +63,13 @@ export default function Dashboard() {
         title="Security Operations Dashboard"
         subtitle="Live view of malware investigations, detections, and threat intelligence"
         icon={ShieldAlert}
+        badge={
+          isLoading && !usingDemo
+            ? { label: "Loading…", tone: "neutral" }
+            : usingDemo
+              ? { label: "DEMO DATA", tone: "warning" }
+              : { label: "LIVE", tone: "success" }
+        }
         actions={
           <>
             <Button variant="outline" size="md" onClick={() => navigate("/queue")}>
@@ -78,10 +84,10 @@ export default function Dashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile index={0} label="Total Investigations" value={dashboardStats.totalInvestigations.value.toLocaleString()} delta={dashboardStats.totalInvestigations.delta} spark={dashboardStats.totalInvestigations.spark} icon={Radar} color="#22d3ee" />
-        <StatTile index={1} label="Active Detonations" value={dashboardStats.activeDetonations.value} delta={dashboardStats.activeDetonations.delta} spark={dashboardStats.activeDetonations.spark} icon={FlaskConical} color="#6366f1" />
-        <StatTile index={2} label="Critical Alerts" value={dashboardStats.criticalAlerts.value} delta={dashboardStats.criticalAlerts.delta} spark={dashboardStats.criticalAlerts.spark} icon={ShieldAlert} color="#f43f5e" />
-        <StatTile index={3} label="Mean Time to Verdict" value={dashboardStats.meanTimeToVerdict.value} unit={dashboardStats.meanTimeToVerdict.unit} delta={dashboardStats.meanTimeToVerdict.delta} spark={dashboardStats.meanTimeToVerdict.spark} icon={Timer} color="#34d399" invertDelta />
+        <StatTile index={0} label="Total Investigations" value={kpi.total.toLocaleString()} icon={Radar} color="#22d3ee" />
+        <StatTile index={1} label="Active Analyses" value={kpi.active} icon={FlaskConical} color="#6366f1" />
+        <StatTile index={2} label="Critical Alerts" value={kpi.critical} icon={ShieldAlert} color="#f43f5e" />
+        <StatTile index={3} label="Completed Analyses" value={kpi.completed} icon={Timer} color="#34d399" />
       </div>
 
       {/* Charts row */}
@@ -91,7 +97,7 @@ export default function Dashboard() {
           <CardHeader>
             <div>
               <CardTitle>Investigation & Detection Trend</CardTitle>
-              <p className="mt-0.5 text-xs text-muted-foreground">Last 30 days · daily sample throughput</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Last 30 days · demo dataset</p>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <span className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-full bg-primary" /> Investigations</span>
@@ -128,7 +134,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Top Malware Families</CardTitle>
-            <span className="text-xs text-muted-foreground">30 days</span>
+            <span className="text-xs text-muted-foreground">30 days · demo</span>
           </CardHeader>
           <CardContent>
             <div className="relative h-40">
@@ -283,7 +289,7 @@ export default function Dashboard() {
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Rss className="size-4 text-primary" /> Live Threat Intelligence Feed</CardTitle>
-            <span className="badge border-success/30 bg-success/10 text-success"><span className="size-1.5 animate-pulse rounded-full bg-success" /> Live</span>
+            <span className="badge border-medium/30 bg-medium/10 text-medium"><span className="size-1.5 rounded-full bg-medium" /> Demo feed</span>
           </CardHeader>
           <CardContent className="space-y-1">
             {threatFeed.map((f, i) => (
@@ -312,19 +318,20 @@ export default function Dashboard() {
           <div className="pointer-events-none absolute -right-8 -top-8 size-40 rounded-full bg-accent/10 blur-3xl" />
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Cpu className="size-4 text-accent" /> AI Analysis Engine</CardTitle>
-            <span className="badge border-accent/30 bg-accent/10 text-accent">RAG + FAISS</span>
+            <span className="badge border-medium/30 bg-medium/10 text-medium">Ollama · not configured</span>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs leading-relaxed text-muted-foreground">
-              The LLM correlates static, dynamic, and network signals against a vector-indexed corpus of
-              1.2M+ malware behaviours to produce human-readable investigation verdicts.
+              The AI engine runs on Ollama with a local model (no API keys, no paid credits).
+              It is wired into the pipeline as the final analysis stage and is not yet configured
+              on this machine — install Ollama to enable it.
             </p>
             <div className="space-y-2.5">
               {[
-                { k: "Model", v: "aegis-analyst-v2 (LLM)" },
-                { k: "Reference corpus", v: "1.24M behaviours" },
-                { k: "Avg. inference", v: "4.2s / case" },
-                { k: "Verdict accuracy", v: "96.1%" },
+                { k: "Provider", v: "Ollama (local)" },
+                { k: "Model", v: "qwen3 (default)" },
+                { k: "Status", v: "Not configured" },
+                { k: "Static analysis", v: "Module pending" },
               ].map((r) => (
                 <div key={r.k} className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">{r.k}</span>
@@ -332,8 +339,8 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-            <Button variant="subtle" className="w-full" onClick={() => navigate("/investigation/inv-0412/ai")}>
-              Open featured AI investigation <ChevronRight className="size-4" />
+            <Button variant="subtle" className="w-full" onClick={() => navigate("/upload")}>
+              Submit a sample <ChevronRight className="size-4" />
             </Button>
           </CardContent>
         </Card>

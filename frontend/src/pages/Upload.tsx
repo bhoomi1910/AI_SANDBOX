@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Loader2,
   CheckCircle2,
+  XCircle,
   FileText,
   Boxes,
   Binary,
@@ -19,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn, formatBytes } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 const supported = [
   { ext: "EXE", desc: "Windows executable", icon: Binary },
@@ -31,13 +33,12 @@ const supported = [
 
 const pipeline = [
   "Uploading to secure enclave",
-  "Computing hashes (SHA-256 / MD5)",
-  "Static triage & YARA scan",
-  "Provisioning sandbox VM",
-  "Queued for detonation",
+  "Computing hashes (SHA-256 / MD5 / SHA-1)",
+  "Storing sample & creating investigation",
+  "Queued for static analysis",
 ];
 
-type Stage = "idle" | "uploading" | "queued";
+type Stage = "idle" | "uploading" | "queued" | "error";
 
 export default function Upload() {
   const navigate = useNavigate();
@@ -47,46 +48,65 @@ export default function Upload() {
   const [progress, setProgress] = useState(0);
   const [file, setFile] = useState<{ name: string; size: number; type: string } | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
+  const [caseId, setCaseId] = useState<string>("");
+  const [error, setError] = useState<string>("");
 
-  const start = useCallback((f: { name: string; size: number; type: string }) => {
+  const start = useCallback(async (f: { name: string; size: number; type: string; raw?: File }) => {
     setFile(f);
     setStage("uploading");
     setProgress(0);
     setStepIndex(0);
+    setError("");
 
+    // Animate progress while the upload request is in flight; the endpoint
+    // returns once the file is stored and the investigation is queued.
     let p = 0;
     const timer = setInterval(() => {
       p += Math.random() * 9 + 4;
-      setProgress(Math.min(100, p));
+      setProgress(Math.min(90, p));
       setStepIndex(Math.min(pipeline.length - 1, Math.floor((p / 100) * pipeline.length)));
-      if (p >= 100) {
-        clearInterval(timer);
-        setTimeout(() => setStage("queued"), 500);
-      }
-    }, 220);
+    }, 180);
+
+    try {
+      if (!f.raw) throw new Error("No file selected");
+      const result = await api.uploadSample(f.raw);
+      clearInterval(timer);
+      setProgress(100);
+      setStepIndex(pipeline.length - 1);
+      setCaseId(result.investigation.caseId);
+      setTimeout(() => setStage("queued"), 400);
+    } catch (err) {
+      clearInterval(timer);
+      setError(err instanceof Error ? err.message : "Upload failed");
+      setStage("error");
+    }
   }, []);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) start({ name: f.name, size: f.size, type: f.name.split(".").pop()?.toUpperCase() ?? "BIN" });
+    const raw = e.dataTransfer.files?.[0];
+    if (raw) start({ name: raw.name, size: raw.size, type: raw.name.split(".").pop()?.toUpperCase() ?? "BIN", raw });
   };
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) start({ name: f.name, size: f.size, type: f.name.split(".").pop()?.toUpperCase() ?? "BIN" });
+    const raw = e.target.files?.[0];
+    if (raw) start({ name: raw.name, size: raw.size, type: raw.name.split(".").pop()?.toUpperCase() ?? "BIN", raw });
   };
 
-  // Fallback demo file if the user has nothing to drop
-  const demoUpload = () =>
-    start({ name: "Invoice_scan_04829.exe", size: 486_912, type: "EXE" });
+  const reset = () => {
+    setStage("idle");
+    setFile(null);
+    setProgress(0);
+    setStepIndex(0);
+    if (inputRef.current) inputRef.current.value = "";
+  };
 
   return (
     <div>
       <PageHeader
         title="Submit Sample for Analysis"
-        subtitle="Upload a suspicious file to detonate it in an isolated sandbox and generate an AI investigation"
+        subtitle="Upload a suspicious file to generate a secure static-analysis investigation with an AI verdict"
         icon={UploadCloud}
       />
 
@@ -121,7 +141,7 @@ export default function Upload() {
                       <UploadCloud className="size-8 text-primary" />
                     </motion.div>
                     <h3 className="mt-5 text-lg font-semibold text-foreground">
-                      {dragging ? "Release to detonate" : "Drag & drop a file here"}
+                      {dragging ? "Release to submit" : "Drag & drop a file here"}
                     </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       or <span className="text-primary">browse your computer</span> · max 100 MB
@@ -134,13 +154,10 @@ export default function Upload() {
                       ))}
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface/40 px-4 py-3">
+                  <div className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-surface/40 px-4 py-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Lock className="size-3.5 text-success" /> Samples are handled in an air-gapped enclave — nothing is executed on your host.
+                      <Lock className="size-3.5 text-success" /> Samples are stored in a secure enclave and analysed with static tools — nothing is executed on your host.
                     </div>
-                    <Button size="sm" variant="subtle" onClick={demoUpload}>
-                      Use demo sample
-                    </Button>
                   </div>
                 </motion.div>
               )}
@@ -188,17 +205,31 @@ export default function Upload() {
                   </motion.div>
                   <h3 className="mt-5 text-lg font-semibold text-foreground">Sample submitted successfully</h3>
                   <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">{file.name}</span> has been queued for detonation in sandbox VM-07. A new case has been created.
+                    <span className="font-medium text-foreground">{file.name}</span> has been queued for static
+                    analysis. A new investigation has been created.
                   </p>
                   <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-lg border border-border bg-surface/50 px-4 py-2 font-mono text-sm">
                     <span className="text-muted-foreground">Case ID</span>
-                    <span className="font-semibold text-primary">AGS-2026-0413</span>
+                    <span className="font-semibold text-primary">{caseId}</span>
                   </div>
                   <div className="mt-6 flex justify-center gap-3">
-                    <Button variant="outline" onClick={() => setStage("idle")}>Submit another</Button>
+                    <Button variant="outline" onClick={reset}>Submit another</Button>
                     <Button onClick={() => navigate("/queue")}>
                       Go to queue <ArrowRight className="size-4" />
                     </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {stage === "error" && file && (
+                <motion.div key="err" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="py-8 text-center">
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", damping: 12 }} className="mx-auto grid size-16 place-items-center rounded-2xl bg-critical/10 ring-1 ring-critical/30">
+                    <XCircle className="size-8 text-critical" />
+                  </motion.div>
+                  <h3 className="mt-5 text-lg font-semibold text-foreground">Upload failed</h3>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{error}</p>
+                  <div className="mt-6 flex justify-center gap-3">
+                    <Button variant="outline" onClick={reset}>Try again</Button>
                   </div>
                 </motion.div>
               )}
@@ -234,7 +265,7 @@ export default function Upload() {
             </CardHeader>
             <CardContent>
               <ol className="space-y-3">
-                {["Static analysis extracts hashes, strings, imports & YARA hits", "The file is detonated in an isolated VM and behaviour is recorded", "Network, registry & process activity is captured", "Threat intel enrichment + MITRE ATT&CK mapping", "AI produces a reasoned verdict and full report"].map((t, i) => (
+                {["File hashes (SHA-256 / MD5 / SHA-1) are computed and the sample is stored securely", "Static analysis extracts strings, imports & YARA hits", "Threat intel enrichment + MITRE ATT&CK mapping", "AI produces a reasoned verdict and full report"].map((t, i) => (
                   <li key={i} className="flex gap-3 text-sm">
                     <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[0.7rem] font-bold text-primary">{i + 1}</span>
                     <span className="text-muted-foreground">{t}</span>

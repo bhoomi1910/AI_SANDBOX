@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import {
   FileSearch,
   Activity,
@@ -12,6 +13,7 @@ import {
   FileWarning,
 } from "lucide-react";
 import { getInvestigation, statusMeta } from "@/data/investigations";
+import { api, USE_BACKEND } from "@/lib/api";
 import { SeverityBadge } from "@/components/ui/badge";
 import { CopyChip } from "@/components/ui/misc";
 import { cn, formatBytes, timeAgo } from "@/lib/utils";
@@ -28,7 +30,14 @@ const tabs = [
 
 export function InvestigationLayout() {
   const { id = "inv-0412" } = useParams();
-  const inv = getInvestigation(id);
+  const mockInv = getInvestigation(id);
+  const { data: liveInv } = useQuery({
+    queryKey: ["investigation", id],
+    queryFn: () => api.getInvestigation(id),
+    retry: 1,
+    enabled: USE_BACKEND && !mockInv,
+  });
+  const inv = liveInv ?? mockInv;
 
   if (!inv) {
     return (

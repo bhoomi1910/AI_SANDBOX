@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { ListChecks, Search, SlidersHorizontal } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Input } from "@/components/ui/misc";
 import { SeverityBadge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn, formatBytes, timeAgo } from "@/lib/utils";
+import { api, USE_BACKEND } from "@/lib/api";
 import { investigations, statusMeta, severityRank } from "@/data/investigations";
 import type { InvestigationStatus } from "@/data/types";
 
@@ -25,14 +27,24 @@ export default function Queue() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InvestigationStatus | "all">("all");
 
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["investigations"],
+    queryFn: () => api.listInvestigations(),
+    retry: 1,
+    refetchInterval: 15000,
+    enabled: USE_BACKEND,
+  });
+  const usingDemo = !USE_BACKEND || isError;
+  const items = usingDemo ? investigations : (data ?? []);
+
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: investigations.length };
-    for (const i of investigations) c[i.status] = (c[i.status] ?? 0) + 1;
+    const c: Record<string, number> = { all: items.length };
+    for (const i of items) c[i.status] = (c[i.status] ?? 0) + 1;
     return c;
-  }, []);
+  }, [items]);
 
   const rows = useMemo(() => {
-    return investigations
+    return items
       .filter((i) => (filter === "all" ? true : i.status === filter))
       .filter((i) =>
         query
@@ -43,7 +55,7 @@ export default function Queue() {
           : true
       )
       .sort((a, b) => severityRank[b.severity] - severityRank[a.severity]);
-  }, [query, filter]);
+  }, [items, query, filter]);
 
   return (
     <div>
@@ -51,6 +63,13 @@ export default function Queue() {
         title="Investigation Queue"
         subtitle="All active and completed malware investigations across the SOC"
         icon={ListChecks}
+        badge={
+          isLoading && !usingDemo
+            ? { label: "Loading…", tone: "neutral" }
+            : usingDemo
+              ? { label: "DEMO DATA", tone: "warning" }
+              : { label: "LIVE", tone: "success" }
+        }
       />
 
       {/* Controls */}
