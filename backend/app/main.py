@@ -57,7 +57,7 @@ def health():
         "database": settings.database_url,
         "components": {
             "api": "operational",
-            "static_analysis": "pending",
+            "static_analysis": "operational",
             "ai_engine": settings.ai_provider_label,
             "threat_intel_feeds": "pending",
         },

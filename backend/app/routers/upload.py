@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database import get_db
 from app.models import Investigation, new_id, utcnow
+from app.services.analysis import start_analysis
 from app.services.storage import EmptyFileError, FileTooLargeError, save_upload
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ def upload_sample(file: UploadFile, db: Session = Depends(get_db)):
     db.refresh(inv)
 
     logger.info("Sample stored id=%s case=%s sha256=%s", inv.id, inv.case_id, inv.sha256)
+    start_analysis(inv.id)
     return {"message": "Sample received and queued for analysis", "investigation": inv.to_dict()}
 
 

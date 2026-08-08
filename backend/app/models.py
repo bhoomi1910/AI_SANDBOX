@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -106,3 +106,15 @@ def _load_json_list(raw: str) -> list[str]:
         return json.loads(raw or "[]")
     except (TypeError, ValueError):
         return []
+
+
+class AnalysisResult(Base):
+    """One row per completed (or reused) static-analysis run."""
+
+    __tablename__ = "analysis_results"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    investigation_id: Mapped[str] = mapped_column(String(36), ForeignKey("investigations.id"), index=True)
+    file_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    data: Mapped[str] = mapped_column(Text)  # JSON payload from the analysis pipeline
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -86,7 +86,7 @@ def _system_health() -> list[dict]:
     settings = get_settings()
     return [
         {"name": "Analysis API", "detail": "FastAPI + SQLite", "status": "operational", "load": 0},
-        {"name": "Static Analysis", "detail": "Module not yet implemented", "status": "degraded", "load": 0},
+        {"name": "Static Analysis", "detail": "PE/PDF/Office/Script + YARA-lite + scoring", "status": "operational", "load": 0},
         {"name": "AI Inference (LLM)", "detail": settings.ai_provider_label, "status": "degraded", "load": 0},
         {"name": "Threat Intel Feeds", "detail": "Module not yet implemented", "status": "degraded", "load": 0},
     ]
