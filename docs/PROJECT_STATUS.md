@@ -34,6 +34,32 @@ not installed (`ai_model=qwen3` is a default, not verified).
 
 ---
 
+## 0.1 Current Status (Phase 3 — Detection & Evidence Engine) — updated 09 Aug 2026
+
+The sections below record the pre-rebuild audit. Since then, Phase 1 (DB + secure upload),
+Phase 2 (static analysis engine) and Phase 3 (detection & evidence engine) have landed and
+are verified end-to-end:
+
+**Working now (verified end-to-end):**
+- `POST /api/samples/upload` streams to `uploads/`, enforces 100 MiB, rejects empty files,
+  computes hashes, creates `INV-YYYY-NNNN`.
+- Analysis pipeline (`backend/app/services/analysis/`): file-type detection, metadata,
+  strings, entropy, PE/Office/PDF/Image analyzers with per-analyzer failure isolation,
+  YARA-lite matching, and a deterministic threat score.
+- Detection layer (`backend/app/services/detection/`): normalized evidence model, IOC
+  extraction (URL/domain/IP/email/hash/registry/path/command/mutex) with FP controls,
+  11 correlation rules, evidence-backed MITRE ATT&CK mappings, provenance graph.
+- Endpoints: `/findings`, `/iocs`, `/mitre`, `/graph`, `/static`, `/threat-intel`.
+- Frontend Static Analysis and MITRE pages render live detection data with mock fallback.
+- **47 pytest tests pass** (`..\venv\Scripts\python.exe -m pytest -q` from `backend/`).
+- `npx tsc --noEmit` passes.
+
+**Still to do (by phase):** AI/Ollama verdict (P4, explains — never invents — detections),
+reporting/history (P5). AI and report pages still render mock content.
+
+**Known issues:** `npm run lint` broken (eslint not installed); Docker not installed; Ollama
+not installed (`ai_model=qwen3` is a default, not verified).
+
 ## 1. Executive Summary
 
 The repository currently contains **design documentation only**. The working directory
