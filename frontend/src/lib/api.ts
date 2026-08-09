@@ -66,6 +66,9 @@ export const api = {
       `/investigations/${id}/graph`
     ),
 
+  getAiAnalysis: (id: string) =>
+    request<Record<string, unknown>>(`/investigations/${id}/ai`),
+
   uploadSample: async (file: File) => {
     const form = new FormData();
     form.append("file", file);

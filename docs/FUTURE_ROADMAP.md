@@ -50,6 +50,14 @@ Each new feature will:
 ### AI
 
 - AI Module Foundation
+- Ollama provider + model discovery (Phase 4)
+- Prompt builder, strict validation, anti-hallucination guard (Phase 4)
+- Graceful `unavailable`/`error` fallback when Ollama is down (Phase 4)
+
+### AI Not Yet Completed
+
+- AI Chat Assistant
+- RAG / Investigation Notes
 
 ---
 
@@ -226,13 +234,18 @@ Benefits
 
 ## Goal
 
-Provide explainable AI assistance.
+Provide explainable AI assistance. **Implemented (10 Aug 2026).** The AI layer
+interprets the deterministic Phase 3 output — it never invents detections.
 
 ---
 
 ## Ollama Integration
 
-Run local LLMs.
+Run local LLMs. **Implemented:** `backend/app/services/ai/providers.py`
+(`AIProvider` + `OllamaProvider`) talks only to a locally hosted Ollama server
+(`OLLAMA_URL`, default `http://localhost:11434`). There is no cloud or paid
+inference. Every network call is bounded by a timeout and maps to
+`AIUnavailable`, so a missing or broken Ollama never blocks analysis.
 
 Benefits
 
@@ -244,23 +257,34 @@ Benefits
 
 ## Supported Models
 
+Any locally installed (free) model:
+
 - Qwen
 - DeepSeek
 - Llama
 - Mistral
 - CodeLlama
 
+Model selection (`backend/app/services/ai/providers.py`): `OLLAMA_MODEL`
+(`ai_model`) if set, else the first installed model from `GET /api/tags`
+(auto-discovery), else `unavailable`.
+
 ---
 
 ## AI Features
 
-Generate:
+Generate: **Implemented** (`prompt.py`, `validation.py`, `service.py`)
 
 - Executive Summary
 - Technical Summary
 - Threat Explanation
-- Recommendations
-- Investigation Notes
+- Key Findings / Risk Factors
+- Recommendations (priority + action)
+- Limitations
+
+Each response is strictly validated; the anti-hallucination guard drops any
+MITRE technique id the deterministic engine did not map, and the schema has no
+fields for IOCs or a raw score. `confidence` is clamped 0–100.
 
 ---
 
@@ -272,6 +296,8 @@ Allow users to ask:
 - Explain the YARA match.
 - What should I investigate next?
 - Explain this IOC.
+
+**Not yet implemented** — still a future Phase 4.5/5 enhancement.
 - Summarize this report.
 
 ---
@@ -654,7 +680,7 @@ while remaining lightweight, privacy-focused, and suitable for educational and r
 | Version 1.0 | Prototype & Core Architecture |
 | Phase 2 | Core Static Analysis |
 | Phase 3 | Threat Detection & IOC Extraction |
-| Phase 4 | AI Integration with Ollama |
+| Phase 4 | AI Integration with Ollama — ✅ Implemented (interpretation only, local-only) |
 | Phase 5 | Reporting & Dashboard Analytics |
 | Phase 6 | Threat Intelligence Integrations |
 | Phase 7 | Advanced File Analysis |

@@ -344,10 +344,71 @@ normalization, IOC extraction, correlation rules, evidence-backed MITRE
 mappings, provenance graph). Every verdict, score and technique mapping can be
 traced back to concrete evidence without any model in the loop.
 
-Phase 4 (Ollama) will only **explain** results the deterministic engine already
+Phase 4 (implemented) **explains** results the deterministic engine already
 produced. The AI must not invent findings, IOCs or MITRE techniques that the
 engine did not observe — it interprets and summarizes, it never creates
 detections.
+
+---
+
+# AI Engine Implementation (Phase 4)
+
+## Provider abstraction (`app/services/ai/providers.py`)
+
+- `AIProvider` contract: `label()`, `list_models()`, `select_model()`,
+  `generate(prompt, model)`.
+- `OllamaProvider`: talks only to a locally hosted server (`OLLAMA_URL`,
+  default `http://localhost:11434`). **No cloud/paid inference exists anywhere.**
+- Every network call is bounded by a timeout and maps to `AIUnavailable` on any
+  HTTP/transport error — a missing or broken Ollama never blocks analysis.
+
+## Model selection (config-driven, never hard-coded)
+
+1. `OLLAMA_MODEL` (`Settings.ai_model`) when set, else
+2. the first installed model reported by `GET /api/tags` (auto-discovery), else
+3. `AIUnavailable` → the `/ai` endpoint reports `unavailable`.
+
+Only locally installed (free) models are ever used.
+
+## Prompt builder (`app/services/ai/prompt.py`)
+
+Builds one deterministic prompt from the Phase 3 output: file identity,
+classification, the authoritative threat score + breakdown, findings with
+confidence/module/MITRE, IOCs, the deterministic MITRE mappings, and an
+evidence inventory. The prompt hard-constrains the model: never invent IOCs or
+technique ids, never assign a family or score, never claim runtime behaviour,
+answer with JSON only.
+
+## Strict validation (`app/services/ai/validation.py`)
+
+- Parses the JSON response (tolerates ```json fences and trailing commas).
+- Coerces types, bounds every list/text/confidence value.
+- **Anti-hallucination guard:** every `mitre_explanation` entry must reference a
+  technique id that exists in the deterministic mappings — anything else is
+  dropped. The model can never introduce IOCs or a score: those fields do not
+  exist in the accepted schema.
+
+## Service (`app/services/ai/service.py`)
+
+`run_ai_analysis(context)` returns one of three stable shapes:
+
+| Status | Meaning |
+|--------|---------|
+| `completed` | validated interpretation + deterministic context + provenance (cached by the router) |
+| `unavailable` | Ollama unreachable / no model / model missing — deterministic analysis unaffected |
+| `error` | model output failed strict validation and was rejected (never stored/shown) |
+
+Completed AI results are cached on the stored analysis payload; unavailable and
+error states are **not** cached, so a later-installed Ollama is picked up
+automatically.
+
+## Response fields
+
+`executive_summary`, `technical_summary`, `threat_explanation`, `key_findings`,
+`risk_factors`, `mitre_explanation` (validated ids only), `recommendations`
+(priority + action), `confidence` (0–100, clamped), `business_impact`,
+`limitations`, plus deterministic context (`severity`, `verdict`,
+`score_total`, `family`, `classification`) and `provenance` counts.
 
 ---
 
@@ -607,12 +668,14 @@ Display Dashboard
 |---------|--------|
 | AI Module Architecture | ✅ Completed |
 | Detection & Evidence Engine (Phase 3) | ✅ Completed |
-| Ollama Integration Design | 🔄 Planned |
-| Prompt Engineering | 🚧 Planned |
-| Executive Summary | 🚧 Planned |
-| Technical Summary | 🚧 Planned |
-| Threat Explanation | 🚧 Planned |
-| Recommendation Engine | 🚧 Planned |
+| Ollama Provider & Model Discovery | ✅ Completed (Phase 4) |
+| Prompt Engineering | ✅ Completed (Phase 4) |
+| Response Schema & Validation | ✅ Completed (Phase 4) |
+| Executive Summary | ✅ Completed (Phase 4) |
+| Technical Summary | ✅ Completed (Phase 4) |
+| Threat Explanation | ✅ Completed (Phase 4) |
+| Recommendation Engine | ✅ Completed (Phase 4) |
+| Graceful Ollama-unavailable fallback | ✅ Completed (Phase 4) |
 | AI Chat Assistant | 📅 Future |
 | RAG Integration | 📅 Future |
 | Multi-Model Support | 📅 Future |

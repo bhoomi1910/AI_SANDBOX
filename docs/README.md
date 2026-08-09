@@ -284,7 +284,7 @@ Detailed documentation is available inside the **docs** directory.
 | Database | Completed |
 | File Upload | Completed |
 | Investigation Page | Completed |
-| AI Module | Prototype |
+| AI Module | Completed (Ollama, local-only, interpretation only) |
 | Metadata Extraction | Planned |
 | Hash Generation | Planned |
 | Static Analysis | Planned |

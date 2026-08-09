@@ -113,7 +113,55 @@ The project follows a version-based development approach, where each release int
 
 ### Known issues (not yet fixed)
 - `npm run lint` still broken (`eslint` not in devDependencies).
-- AI analysis (Ollama) and report generation remain Phase 4+.
+- Report generation remains Phase 7.
+
+---
+
+## 2026-08-10 — Phase 4: AI/Ollama Engine (interpretation only)
+
+### Added
+- AI package `backend/app/services/ai/`:
+  - `providers.py` — `AIProvider` abstraction + `OllamaProvider` (local Ollama
+    REST only, no cloud/paid inference), timeouts, `AIUnavailable` mapping.
+  - `prompt.py` — deterministic prompt builder over the Phase 3 output
+    (findings, IOCs, MITRE mappings, score) with hard anti-invention rules.
+  - `validation.py` — strict JSON schema validation; anti-hallucination guard
+    drops any MITRE technique id not present in the deterministic mappings;
+    types coerced, sizes bounded, confidence clamped 0–100.
+  - `service.py` — `run_ai_analysis(context)` with three stable outcomes:
+    `completed` / `unavailable` (Ollama down) / `error` (response rejected).
+  - `errors.py` — `AIUnavailable`, `AIValidationError`.
+- Config: `ai_model` no longer hard-coded; empty string auto-discovers the
+  first installed free model via `GET /api/tags`. Added
+  `ai_timeout_seconds` / `ai_probe_timeout_seconds`.
+- `/api/investigations/{id}/ai` endpoint: builds the deterministic context,
+  runs the AI, caches `completed` results on the stored payload (repeat
+  requests instant), never caches unavailable/error so a later-installed
+  Ollama is picked up automatically.
+- Frontend: `api.ts` `getAiAnalysis`; `AiInvestigation.tsx` renders live
+  structured AI output (executive/technical/threat summaries, key findings,
+  risk factors, MITRE explanations joined with the deterministic mapping,
+  recommendations, confidence, limitations, deterministic score/verdict) with
+  mock fallback and a clear "AI analysis unavailable" state.
+- 31 additional pytest tests (prompt, validation, provider with mock
+  transport, service outcomes, end-to-end `/ai` API with injected provider) —
+  **78 tests total**, all passing with no real Ollama installed.
+
+### Changed
+- The AI page no longer shows fabricated malware verdicts — it always reflects
+  the deterministic analysis and marks AI content as interpretation.
+- Docs: `AI_ENGINE.md`, `API_DOCUMENTATION.md` updated for Phase 4.
+
+### Security
+- The AI can never: execute the sample, determine the raw score, invent IOCs,
+  invent MITRE techniques, claim unobserved runtime behaviour, or override a
+  deterministic finding.
+- Failure isolation extends to the AI layer: a provider outage, hang, or
+  invalid response never blocks or corrupts the investigation.
+
+### Known issues (not yet fixed)
+- `npm run lint` still broken (`eslint` not in devDependencies).
+- Report generation remains Phase 7.
 
 ---
 
@@ -555,7 +603,7 @@ When contributing to the project:
 | Documentation | ✅ Completed |
 | Static Analysis Engine | ✅ Completed |
 | Threat Detection Modules | ✅ Completed |
-| AI Integration (Ollama) | 🚧 Planned |
+| AI Integration (Ollama) | ✅ Completed |
 | Report Generation | 🚧 Planned |
 | Dashboard Analytics | 🚧 Planned |
 | Threat Intelligence Integration | 📅 Future |

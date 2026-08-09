@@ -1,9 +1,10 @@
 """Investigation queue + detail endpoints (DB-backed).
 
 Static analysis results are served from the stored `AnalysisResult` row;
-threat intel, MITRE and AI deep-dive endpoints keep a stable URL contract
-but return structured "pending" payloads until those modules land in later
-phases (Phase 3 / Phase 4).
+threat intel, MITRE and AI deep-dive endpoints keep a stable URL contract.
+Phase 3 serves real findings/IOCs/MITRE/graph; Phase 4 serves the AI
+interpretation of that deterministic output (or a graceful unavailable/error
+state when Ollama cannot be reached).
 """
 import json
 
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import AnalysisResult, Investigation
+from app.services import ai as ai_service
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
 
@@ -101,12 +103,29 @@ def threat_intel(inv_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{inv_id}/ai")
 def ai_investigation(inv_id: str, db: Session = Depends(get_db)):
+    """AI interpretation of the deterministic analysis (Phase 4).
+
+    Completed results are cached on the stored payload so repeat requests are
+    instant. Unavailable/error states are NOT cached, so a later-installed
+    Ollama is picked up automatically. The AI never replaces the deterministic
+    verdict — when it is unavailable the deterministic endpoints keep working.
+    """
     _require(db, inv_id)
-    return {
-        "status": "unavailable",
-        "provider": settings_ai_provider(),
-        "note": "AI engine is not configured yet — no model available on this host",
-    }
+    payload = _load_result(db, inv_id)
+    if payload is None:
+        return _pending("Static analysis has not completed for this investigation yet")
+    if payload.get("corrupt"):
+        return {"status": "error", "provider": "n/a",
+                "note": "Stored analysis payload is corrupt — deterministic data is unavailable."}
+    if payload.get("ai"):
+        return payload["ai"]
+
+    inv = db.get(Investigation, inv_id)
+    result = ai_service.run_ai_analysis(_ai_context(payload, inv))
+    if result["status"] == "completed":
+        payload["ai"] = result
+        _save_result(db, inv_id, payload)
+    return result
 
 
 def _require(db: Session, inv_id: str) -> Investigation:
@@ -136,7 +155,34 @@ def _pending(detail: str) -> dict:
     return {"status": "pending", "detail": detail}
 
 
-def settings_ai_provider() -> str:
-    from app.config import get_settings
+def _ai_context(payload: dict, inv: Investigation) -> dict:
+    """Deterministic context handed to the AI engine (never AI-authored)."""
+    return {
+        "file": {
+            "filename": inv.filename,
+            "file_type": payload.get("fileType"),
+            "family": payload.get("family"),
+            "sha256": inv.sha256,
+            "size": inv.size_bytes,
+        },
+        "classification": payload.get("classification"),
+        "score": payload.get("score", {}),
+        "findings": payload.get("findings", []),
+        "iocs": payload.get("iocs", []),
+        "mitre": payload.get("mitre", []),
+        "evidence": payload.get("evidence", []),
+        "static": payload.get("static", {}),
+    }
 
-    return get_settings().ai_provider_label
+
+def _save_result(db: Session, inv_id: str, payload: dict) -> None:
+    result = (
+        db.query(AnalysisResult)
+        .filter(AnalysisResult.investigation_id == inv_id)
+        .order_by(AnalysisResult.created_at.desc())
+        .first()
+    )
+    if result is None:
+        return
+    result.data = json.dumps(payload)
+    db.commit()

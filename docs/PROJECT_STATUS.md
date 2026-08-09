@@ -34,31 +34,42 @@ not installed (`ai_model=qwen3` is a default, not verified).
 
 ---
 
-## 0.1 Current Status (Phase 3 — Detection & Evidence Engine) — updated 09 Aug 2026
+## 0.1 Current Status (Phase 4 — AI/Ollama Engine) — updated 10 Aug 2026
 
-The sections below record the pre-rebuild audit. Since then, Phase 1 (DB + secure upload),
-Phase 2 (static analysis engine) and Phase 3 (detection & evidence engine) have landed and
-are verified end-to-end:
+The sections below record the pre-rebuild audit. Since then, Phase 1 (DB +
+secure upload), Phase 2 (static analysis engine), Phase 3 (detection & evidence
+engine) and Phase 4 (AI/Ollama engine) have landed and are verified end-to-end:
 
 **Working now (verified end-to-end):**
-- `POST /api/samples/upload` streams to `uploads/`, enforces 100 MiB, rejects empty files,
-  computes hashes, creates `INV-YYYY-NNNN`.
-- Analysis pipeline (`backend/app/services/analysis/`): file-type detection, metadata,
-  strings, entropy, PE/Office/PDF/Image analyzers with per-analyzer failure isolation,
-  YARA-lite matching, and a deterministic threat score.
-- Detection layer (`backend/app/services/detection/`): normalized evidence model, IOC
-  extraction (URL/domain/IP/email/hash/registry/path/command/mutex) with FP controls,
-  11 correlation rules, evidence-backed MITRE ATT&CK mappings, provenance graph.
-- Endpoints: `/findings`, `/iocs`, `/mitre`, `/graph`, `/static`, `/threat-intel`.
-- Frontend Static Analysis and MITRE pages render live detection data with mock fallback.
-- **47 pytest tests pass** (`..\venv\Scripts\python.exe -m pytest -q` from `backend/`).
-- `npx tsc --noEmit` passes.
+- `POST /api/samples/upload` streams to `uploads/`, enforces 100 MiB, rejects
+  empty files, computes hashes, creates `INV-YYYY-NNNN`.
+- Analysis pipeline (`backend/app/services/analysis/`): file-type detection,
+  metadata, strings, entropy, PE/Office/PDF/Image analyzers with per-analyzer
+  failure isolation, YARA-lite matching, and a deterministic threat score.
+- Detection layer (`backend/app/services/detection/`): normalized evidence,
+  IOC extraction with FP controls, 11 correlation rules, evidence-backed MITRE
+  mappings, provenance graph.
+- AI engine (`backend/app/services/ai/`): `AIProvider` abstraction,
+  `OllamaProvider` (local-only, free models auto-discovered via `/api/tags`),
+  deterministic prompt builder, strict JSON validation with anti-hallucination
+  guard, and graceful `unavailable`/`error` fallback when Ollama is down.
+- Endpoints: `/static`, `/findings`, `/iocs`, `/mitre`, `/graph`, `/ai`.
+- Frontend Static Analysis, MITRE and AI pages render live data with mock
+  fallback; the AI page shows a clear "unavailable" state instead of fake
+  verdicts.
+- **78 pytest tests pass** (`..\venv\Scripts\python.exe -m pytest -q` from
+  `backend/`), all without a real Ollama (mock transport + injected provider).
+- `npm run build` (tsc + vite) passes.
 
-**Still to do (by phase):** AI/Ollama verdict (P4, explains — never invents — detections),
-reporting/history (P5). AI and report pages still render mock content.
+**Ollama on this machine:** not installed and not running (verified 10 Aug
+2026). The `/ai` endpoint therefore returns `unavailable` in practice until
+Ollama is installed and a free model is pulled; everything else works normally.
 
-**Known issues:** `npm run lint` broken (eslint not installed); Docker not installed; Ollama
-not installed (`ai_model=qwen3` is a default, not verified).
+**Still to do (by phase):** reporting/history (Phase 7). AI and report pages
+render live-or-unavailable states; other deep-dive pages remain out of scope.
+
+**Known issues:** `npm run lint` broken (eslint not installed); Docker not
+installed; Ollama not installed.
 
 ## 1. Executive Summary
 
@@ -158,6 +169,10 @@ the documented architecture.
 ---
 
 ## 5. Feature Implementation Status vs Documentation
+
+*Pre-rebuild audit snapshot (kept for reference). Since it was written, Phases
+1–4 implemented upload, storage, DB, static/detection engines, MITRE and the
+Ollama AI engine — see §0.1 above.*
 
 | Feature (per docs) | Documented | Actual |
 |--------------------|-----------|--------|

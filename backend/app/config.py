@@ -24,8 +24,13 @@ class Settings(BaseSettings):
 
     # AI (Phase 4) — Ollama, provider-configurable. Defaults are safe when
     # Ollama is not installed: analysis must never depend on the AI.
+    # ai_model: empty string = auto-discover the first installed model via
+    # Ollama's /api/tags. Only locally installed (free) models are ever used;
+    # no paid/cloud inference endpoint exists.
     ollama_url: str = "http://localhost:11434"
-    ai_model: str = "qwen3"
+    ai_model: str = ""
+    ai_timeout_seconds: float = 120.0
+    ai_probe_timeout_seconds: float = 3.0
 
     # File handling
     max_upload_size: int = 100 * 1024 * 1024  # 100 MiB
@@ -49,7 +54,8 @@ class Settings(BaseSettings):
 
     @property
     def ai_provider_label(self) -> str:
-        return f"ollama/{self.ai_model} (not configured)"
+        model = self.ai_model or "auto-detect (free local models only)"
+        return f"ollama/{model}"
 
 
 @lru_cache

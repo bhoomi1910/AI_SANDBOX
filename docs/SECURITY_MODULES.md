@@ -682,7 +682,7 @@ The Security Engine follows several key principles:
 | MITRE Mapping | ✅ Implemented (Phase 3, evidence-backed) |
 | Investigation Graph | ✅ Implemented (Phase 3) |
 | Threat Intelligence | 📅 Future (external feeds) |
-| AI Interpretation | 📅 Future (Phase 4) |
+| AI Interpretation | ✅ Implemented (Phase 4, Ollama local-only, anti-hallucination guard) |
 
 ---
 

@@ -412,11 +412,69 @@ GET /api/investigations/{id}/threat-intel
 Phase 3 returns the deterministic IOC list. External threat-intel feeds are
 future work.
 
+---
+
+## AI Investigation (Phase 4)
+
+### Endpoint
+
 ```
 GET /api/investigations/{id}/ai
 ```
 
-AI deep-dive returns `unavailable` until the Phase 4 engine is configured.
+Returns the AI interpretation of the deterministic analysis. Completed results
+are cached on the stored payload; repeat requests are instant. When Ollama is
+unreachable or has no model, the response is `unavailable` and the deterministic
+analysis is unaffected.
+
+### Success — `status: completed`
+
+```json
+{
+  "status": "completed",
+  "provider": "ollama/qwen3:4b",
+  "model": "qwen3:4b",
+  "generated_at": "2026-08-10T12:00:00Z",
+  "executive_summary": "The sample is a PowerShell script that downloads...",
+  "technical_summary": "Encoded PowerShell command fetches a remote payload...",
+  "threat_explanation": "The evidence shows scripted download activity...",
+  "key_findings": ["Suspicious PowerShell usage", "Downloader behaviour"],
+  "risk_factors": ["Encoded command", "External URL"],
+  "mitre_explanation": [
+    {"technique_id": "T1059.001", "explanation": "Encoded PowerShell execution"}
+  ],
+  "recommendations": [
+    {"priority": "high", "action": "Quarantine the affected host"}
+  ],
+  "confidence": 80,
+  "business_impact": ["Credential exposure risk"],
+  "limitations": ["Static analysis only — no execution observed"],
+  "severity": "high",
+  "verdict": "suspicious",
+  "score_total": 45,
+  "family": "script",
+  "classification": "Suspicious — powershell, downloader",
+  "provenance": {
+    "findings_used": 3,
+    "iocs_used": 2,
+    "mitre_used": 1,
+    "note": "The AI interprets the deterministic analysis only. It cannot add detections, IOCs or MITRE techniques."
+  }
+}
+```
+
+### Graceful degradation
+
+```json
+{"status": "unavailable", "provider": "ollama/auto", "reason": "cannot reach Ollama at http://localhost:11434", "note": "AI analysis is unavailable because Ollama cannot be reached. The deterministic verdict, findings, IOCs and MITRE mappings are still shown."}
+```
+
+```json
+{"status": "error", "provider": "ollama/qwen3:4b", "reason": "model response is not a JSON object", "note": "The AI response failed strict validation and was rejected. Deterministic analysis is unaffected."}
+```
+
+`unavailable`/`error` responses are never cached, so a later-installed Ollama is
+picked up on the next request.
 
 ---
 
