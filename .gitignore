@@ -30,7 +30,7 @@ Thumbs.db
 *.log
 
 # Uploaded samples / generated reports (forensic evidence, never committed)
-uploads/
-reports/
+/uploads/
+/reports/
 temp/
 logs/

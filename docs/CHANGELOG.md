@@ -165,6 +165,51 @@ The project follows a version-based development approach, where each release int
 
 ---
 
+## 2026-08-11 — Phase 7: Investigation PDF Report
+
+### Added
+- Report service `backend/app/services/reports/`:
+  - `service.py` — context builder over the persisted payload; never recomputes
+    analysis, never calls Ollama. AI content is included only from a validated
+    cached result, otherwise a clearly labelled deterministic / unavailable
+    state is rendered. Internal paths and exception details never leak.
+  - `sections.py` / `styles.py` / `pdf.py` — ReportLab rendering with
+    pagination and wrapping for long evidence / IOC lists.
+- `GET /api/investigations/{inv_id}/report/pdf` endpoint: `404` for unknown
+  investigations, `409` for incomplete analysis, `500` with a safe generic
+  message on render failure; download filename derived from the server case ID
+  (path-traversal / special characters stripped).
+- Frontend `api.ts` `getReportPdf()` (fetch → blob) and a rebuilt `Report.tsx`
+  page: live static findings, IOCs, MITRE mappings and AI investigation with a
+  demo-data fallback; export/print CTA downloads the real PDF when the backend
+  is enabled; AI content is labelled and the unavailable state is rendered
+  explicitly.
+- `AiInvestigation.tsx` "Generate report" now navigates to the current
+  investigation's report (`/investigation/{id}/report`) instead of the
+  hardcoded demo ID.
+- 14 additional pytest tests (report context builder + end-to-end `/report/pdf`
+  incl. AI available / unavailable / error states, large-report pagination,
+  malicious filename safety) — **92 tests total**.
+- `requirements.txt`: `reportlab` (PDF rendering) and `pypdf` (test-only PDF
+  text extraction).
+
+### Changed
+- `.gitignore`: `uploads/` and `reports/` anchored to the repo root so the new
+  `backend/app/services/reports/` package is tracked while runtime artifact
+  directories stay ignored.
+- Docs: `API_DOCUMENTATION.md`, `PROJECT_STATUS.md` updated for the report API.
+
+### Security
+- The report is built exclusively from persisted deterministic data; it never
+  re-runs analysis, never calls Ollama, and never leaks internal filesystem
+  paths, exception details or secrets.
+
+### Known issues (not yet fixed)
+- `npm run lint` still broken (`eslint` not in devDependencies).
+- Investigation history (a first-class past-upload list) remains out of scope.
+
+---
+
 # Versioning Strategy
 
 The project follows **Semantic Versioning (SemVer)**.

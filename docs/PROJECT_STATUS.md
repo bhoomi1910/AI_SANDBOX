@@ -71,6 +71,36 @@ render live-or-unavailable states; other deep-dive pages remain out of scope.
 **Known issues:** `npm run lint` broken (eslint not installed); Docker not
 installed; Ollama not installed.
 
+## 0.2 Current Status (Phase 7 — Investigation Report) — updated 11 Aug 2026
+
+The report layer landed on top of Phase 4:
+
+**Working now (verified end-to-end):**
+- Report service `backend/app/services/reports/` renders a professional
+  ReportLab PDF from the persisted analysis payload — it never recomputes
+  analysis and never calls Ollama. AI content appears only when a validated
+  result is already cached; otherwise a clearly labelled deterministic /
+  unavailable state is rendered. Internal paths and exception details never
+  leak into the report.
+- `GET /api/investigations/{inv_id}/report/pdf`: `200` `application/pdf`
+  download with a safe server-derived filename, `404` for unknown
+  investigations, `409` when analysis has not completed.
+- Frontend `Report.tsx` page renders live static findings, IOCs, MITRE
+  mappings and AI investigation with a demo fallback, and downloads the real
+  PDF when the backend is enabled (`USE_BACKEND`); the "Generate report" CTA
+  navigates to the current investigation's report.
+- **92 pytest tests pass** (`..\venv\Scripts\python.exe -m pytest -q` from
+  `backend/`), including report context and end-to-end PDF tests.
+- `npm run build` (tsc + vite) passes.
+
+**Still to do (by phase):** investigation history (Phase 7 remainder) and the
+Dynamic / Network / Threat-Intel deep-dive pages remain out of scope; those
+pages still render mock content.
+
+**Known issues:** `npm run lint` broken (eslint not installed); Docker not
+installed; Ollama not installed (AI content reports `unavailable` until
+installed).
+
 ## 1. Executive Summary
 
 The repository currently contains **design documentation only**. The working directory

@@ -7,13 +7,20 @@ interpretation of that deterministic output (or a graceful unavailable/error
 state when Ollama cannot be reached).
 """
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import AnalysisResult, Investigation
 from app.services import ai as ai_service
+from app.services.reports import (
+    AnalysisIncompleteError,
+    ReportGenerationError,
+    generate_report_pdf,
+)
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
 
@@ -126,6 +133,40 @@ def ai_investigation(inv_id: str, db: Session = Depends(get_db)):
         payload["ai"] = result
         _save_result(db, inv_id, payload)
     return result
+
+
+@router.get("/{inv_id}/report/pdf")
+def report_pdf(inv_id: str, db: Session = Depends(get_db)):
+    """Professional PDF investigation report (Phase 7).
+
+    Built from the persisted deterministic analysis; the report never calls
+    Ollama. AI content is included only if a validated result is already cached
+    on the stored payload, otherwise a labelled unavailable state is rendered.
+    """
+    inv = _require(db, inv_id)  # 404 for a nonexistent investigation
+    try:
+        pdf = generate_report_pdf(inv_id, db)
+    except AnalysisIncompleteError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ReportGenerationError:
+        raise HTTPException(
+            status_code=500,
+            detail="Report generation failed. Please try again later.",
+        ) from None
+    filename = _safe_report_filename(inv.case_id)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+def _safe_report_filename(case_id: str) -> str:
+    base = re.sub(r"[^A-Za-z0-9._-]", "-", case_id).strip("-") or "investigation"
+    return f"{base}-report.pdf"
 
 
 def _require(db: Session, inv_id: str) -> Investigation:

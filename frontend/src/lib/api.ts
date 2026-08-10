@@ -69,6 +69,22 @@ export const api = {
   getAiAnalysis: (id: string) =>
     request<Record<string, unknown>>(`/investigations/${id}/ai`),
 
+  /** Download the server-generated PDF report for an investigation. */
+  getReportPdf: async (id: string) => {
+    const res = await fetch(`${API_URL}/investigations/${id}/report/pdf`);
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const body = await res.json();
+        detail = body?.detail ?? detail;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new Error(detail || `Report generation failed (${res.status})`);
+    }
+    return res.blob();
+  },
+
   uploadSample: async (file: File) => {
     const form = new FormData();
     form.append("file", file);

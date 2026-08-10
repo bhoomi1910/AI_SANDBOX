@@ -9,12 +9,16 @@ python-multipart==0.0.32
 # Persistence (SQLite by default; PostgreSQL later via DATABASE_URL)
 SQLAlchemy==2.0.51
 
+# PDF report generation (Phase 7)
+reportlab==5.0.0
+
 # Utilities
 python-dotenv==1.2.2
 httpx==0.28.1
 
 # Tests
 pytest==9.1.1
+pypdf==6.15.0  # PDF text extraction used in report tests
 
 # ─── Later phases (uncomment when implemented) ───────────────────────────────
 # Static analysis (Phase 2):

@@ -655,31 +655,26 @@ severity and provenance.
 
 # Report API
 
-## Generate Report
+## Investigation PDF Report (Phase 7)
+
+### Endpoint
 
 ```
-POST /reports/generate
+GET /api/investigations/{inv_id}/report/pdf
 ```
 
----
+Generates and downloads the professional PDF investigation report built from the
+persisted deterministic analysis. The report never re-runs analysis and never
+calls Ollama — AI content is included only when a validated result is already
+cached on the stored payload, otherwise a clearly labelled deterministic /
+unavailable state is rendered.
 
-Returns
+Response:
 
-PDF location
-
-```json
-{
-    "report":"reports/report_101.pdf"
-}
-```
-
----
-
-## Download Report
-
-```
-GET /reports/{id}
-```
+- `200` — `application/pdf`, `Content-Disposition: attachment; filename="{caseId}-report.pdf"` (filename derived from the server-generated case ID, never the raw upload filename).
+- `404` — unknown investigation.
+- `409` — the investigation has not completed analysis yet.
+- `500` — report rendering failed; the body carries a safe, generic message and never leaks internal exception details.
 
 ---
 

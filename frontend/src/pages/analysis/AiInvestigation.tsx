@@ -395,7 +395,7 @@ export default function AiInvestigation() {
             <div className="text-xs text-muted-foreground">Generate the formal report for stakeholders and IR handoff.</div>
           </div>
         </div>
-        <Button onClick={() => navigate("/investigation/inv-0412/report")}>
+        <Button onClick={() => navigate(`/investigation/${inv.id}/report`)}>
           Generate report <ArrowRight className="size-4" />
         </Button>
       </div>
