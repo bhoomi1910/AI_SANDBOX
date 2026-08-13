@@ -1,200 +1,215 @@
 <div align="center">
 
-# 🛡️ Aegis Sandbox AI
+# 🛡️ AI-Powered Intelligent Sandbox
 
-### AI-Powered Interactive Malware Analysis & Threat Investigation Platform
+### Deterministic Static Malware Analysis Platform with AI-Assisted Interpretation
 
-*An MSc Cyber Security demonstration prototype — a high-fidelity working model of a modern SOC malware-analysis product.*
+*A B.E. Major Project — a working SOC-analyst workflow: upload a suspicious file, receive
+a scored, evidence-backed threat analysis, MITRE ATT&CK mapping, an AI interpretation, and a
+downloadable PDF investigation report.*
 
-`React` · `TypeScript` · `Vite` · `TailwindCSS` · `FastAPI` · `PostgreSQL` · `Docker` · `LangChain / RAG`
+`React` · `TypeScript` · `Vite` · `TailwindCSS` · `FastAPI` · `SQLAlchemy` · `SQLite` · `ReportLab` · `Ollama (optional)`
 
 </div>
 
 ---
 
-## 📌 What is this?
+## What is this?
 
-**Aegis Sandbox AI** lets a SOC analyst upload a suspicious file, detonate it in an isolated
-sandbox, and receive a complete, AI-reasoned threat investigation — static analysis, dynamic
-behaviour, network activity, threat-intel enrichment, MITRE ATT&CK mapping, an explainable AI
-verdict, and an exportable investigation report.
+A **safe static analysis sandbox** — the sample is **never executed**. The analyst uploads a
+file and the pipeline produces:
 
-It is designed to demonstrate the **complete analyst workflow** end-to-end. Real malware
-detonation is optional; where a live sandbox/API is unavailable the platform serves
-**high-fidelity simulated data** so the entire journey is fully demonstrable offline.
+- **Hashing** — SHA-256 / MD5 / SHA-1 computed at upload time.
+- **Static analysis** — file-type detection, metadata, strings, entropy, PE / Office / PDF /
+  Image analyzers with per-analyzer failure isolation, YARA-lite matching.
+- **Detection layer** — normalized evidence, IOC extraction (URLs, domains, IPs, emails,
+  hashes, registry keys, paths, commands, mutexes) with false-positive controls, 11
+  correlation rules, and **evidence-backed MITRE ATT&CK mappings** (no hardcoded lists).
+- **Deterministic threat score** — per-category deduplicated weighting → `malicious` /
+  `suspicious` / `clean` verdict with severity.
+- **AI interpretation (optional)** — a local Ollama model explains *what the deterministic
+  findings mean*. The AI can never add detections, invent IOCs/MITRE techniques, or change
+  the score.
+- **PDF report** — a professional ReportLab report built from the persisted analysis,
+  downloadable from the UI.
 
-> **Scope note:** This is a *prototype for demonstration*, not a production security product.
-> It intentionally ships believable simulated results so a mentor can see exactly what the
-> production system becomes.
+> The AI is **interpretation only**. Everything the report claims is grounded in the
+> deterministic analysis; when Ollama is unavailable the platform degrades gracefully and
+> shows a clearly labelled deterministic summary instead of a fake verdict.
 
 ---
 
-## 🎯 The Workflow
+## The Workflow
 
 ```
   Login ──▶ Dashboard ──▶ Upload Sample ──▶ Investigation Queue
-                                                    │
-        ┌───────────────────────────────────────────┘
-        ▼
-  Static Analysis ──▶ Dynamic Analysis ──▶ Network Analysis
-        │
-        ▼
-  Threat Intelligence ──▶ MITRE ATT&CK ──▶ 🤖 AI Investigation ──▶ 📄 Report (PDF)
+                                                   │
+                                                   ▼
+  Static Analysis ──▶ IOCs & Findings ──▶ MITRE ATT&CK ──▶ AI Investigation ──▶ 📄 Report (PDF)
+```
+
+Deep-dive pages: `Static Analysis`, `Mitre`, `AI Investigation` and `Report` are wired to the
+live backend. `Dynamic`, `Network` and `Threat Intel` still render the mock prototype dataset
+(out of scope — this platform intentionally never executes samples).
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 18 + TypeScript, Vite, TailwindCSS, TanStack Query, Recharts, Framer Motion |
+| Backend | Python 3.11+ (tested on 3.14), FastAPI, SQLAlchemy 2, SQLite |
+| Reporting | ReportLab (PDF) |
+| AI (optional) | Local Ollama only — free models auto-discovered via `/api/tags`, no cloud/paid inference |
+
+---
+
+## Quick Start
+
+**Prerequisites:** Node.js 20+, Python 3.11+.
+
+### 1. Backend (FastAPI)
+
+```bash
+cd backend
+python -m venv .venv
+
+# Windows
+.\.venv\Scripts\Activate.ps1
+# Linux/macOS
+source .venv/bin/activate
+
+pip install -r requirements.txt
+copy .env.example .env      # Windows (or: cp .env.example .env)
+uvicorn app.main:app --reload --port 8000
+```
+
+- Interactive API docs → http://localhost:8000/docs
+- Health check → http://localhost:8000/api/health
+
+### 2. Frontend (React + Vite)
+
+```bash
+cd frontend
+npm install
+copy .env.example .env      # Windows (or: cp .env.example .env)
+npm run dev
+```
+
+Open http://localhost:5173 → click **Access console**.
+
+`VITE_USE_BACKEND=true` (the default in `.env.example`) points the frontend at the running
+backend through the Vite `/api` proxy. Set `VITE_USE_BACKEND=false` to run the frontend fully
+on its built-in mock dataset — no backend required.
+
+### 3. Optional — local AI (Ollama)
+
+1. Install [Ollama](https://ollama.com) and pull a free model, e.g. `ollama pull qwen3:4b`.
+2. Leave `AI_MODEL=` empty in `backend/.env` to auto-discover the first installed model, or set
+   it explicitly.
+3. Restart the backend. Without Ollama, the AI sections render a clear "unavailable" state and
+   everything else keeps working.
+
+---
+
+## Tests
+
+```bash
+# Backend — 92 tests (unit + integration + end-to-end API), no real Ollama needed
+cd backend
+..\venv\Scripts\python.exe -m pytest -q        # Windows
+../venv/bin/python -m pytest -q                # Linux/macOS
+
+# Frontend — type-check + production build
+cd frontend
+npm run build
 ```
 
 ---
 
-## ✨ Features
+## API Overview
 
-| Module | Highlights |
-|--------|-----------|
-| **Dashboard** | KPI tiles with sparklines, 30-day detection trend, malware-family donut, severity distribution, live threat feed, system health, AI engine card |
-| **Upload** | Drag-and-drop with animated scan effect, real hashing, simulated analysis pipeline, supports `.exe .dll .pdf .docx .zip .iso` |
-| **Investigation Queue** | Live status (queued → running → analysing → AI-processing → completed), filters, search, progress bars |
-| **Static Analysis** | SHA-256/MD5, entropy gauge, compiler/packer, PE sections, imports, searchable strings, YARA hits, VirusTotal lookup |
-| **Dynamic Analysis** | Simulated sandbox VM screen, behaviour timeline, process tree, registry, filesystem, mutexes, persistence, API calls |
-| **Network Analysis** | Animated C2 world map, DNS/HTTP(S) tables, geolocated connections, packet timeline |
-| **Threat Intelligence** | VirusTotal, AlienVault OTX, AbuseIPDB, MITRE, CVE, Hybrid Analysis enrichment + IOC table |
-| **MITRE ATT&CK** | Kill-chain flow + interactive technique matrix with evidence drawer |
-| **AI Investigation** ⭐ | Typewriter verdict, confidence gauges, what-it-does / why-dangerous, reconstructed attack chain, business impact, explainable reasoning trace, recommended actions |
-| **Report** | Formatted investigation report with Executive Summary, timeline, risk score, IOCs, MITRE, recommendations, **Export PDF** (print) |
+All routes are prefixed with `/api`.
 
-Dark theme · Framer Motion animations · responsive · loading & skeleton states · accessible focus states.
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND (SPA)                                │
-│   React + TypeScript + Vite + Tailwind + shadcn-style UI                   │
-│   React Router · TanStack Query · Recharts · Framer Motion · Lucide        │
-│   Runs fully on a local mock-data layer (no backend required for demo)     │
-└───────────────────────────────┬──────────────────────────────────────────┘
-                                 │  REST /api  (optional)
-┌───────────────────────────────▼──────────────────────────────────────────┐
-│                         BACKEND — FastAPI (Python)                         │
-│   Routers: dashboard · investigations · samples · health                   │
-│   SQLAlchemy models · Pydantic schemas                                     │
-│   AI engine (deterministic simulator ⇄ LangChain + FAISS + LLM)            │
-└─────────┬───────────────────────┬───────────────────────┬────────────────┘
-          │                       │                       │
-    ┌─────▼─────┐          ┌──────▼──────┐         ┌───────▼────────┐
-    │PostgreSQL │          │    Redis    │         │  Sandbox layer │
-    │ (schema)  │          │Celery broker│         │ CAPE / Cuckoo  │
-    └───────────┘          └─────────────┘         │  (simulated)   │
-                                                    └────────────────┘
-```
-
-**AI pipeline (production):** static + dynamic + network signals → RAG retrieval over a
-FAISS vector index of historical malware behaviours → LangChain prompt → OpenAI/Claude-compatible
-LLM → structured, explainable verdict. The prototype ships a **deterministic simulator** so it
-runs with **zero API keys**.
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Service health + component status |
+| `GET` | `/dashboard/stats` | Live dashboard statistics |
+| `POST` | `/samples/upload` | Secure upload → hashing → analysis (100 MiB limit, empty rejected) |
+| `GET` | `/investigations` | List investigations (optional `?status=` filter) |
+| `GET` | `/investigations/{id}` | Single investigation |
+| `GET` | `/investigations/{id}/static` | Full persisted analysis payload |
+| `GET` | `/investigations/{id}/findings` | Detection findings (analyzer + rule-correlated) |
+| `GET` | `/investigations/{id}/iocs` | Deduplicated indicators of compromise |
+| `GET` | `/investigations/{id}/mitre` | Evidence-backed MITRE ATT&CK mappings |
+| `GET` | `/investigations/{id}/graph` | Provenance graph (file → evidence → IOC/finding → technique) |
+| `GET` | `/investigations/{id}/threat-intel` | Stored IOCs (external feeds pending) |
+| `GET` | `/investigations/{id}/ai` | AI interpretation (`completed` / `unavailable` / `error`) |
+| `GET` | `/investigations/{id}/report/pdf` | Downloadable PDF investigation report |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 AI SANDBOX/
-├── frontend/                 # React + TypeScript + Vite SPA
+├── frontend/                  # React + TypeScript + Vite SPA
 │   ├── src/
-│   │   ├── components/       # ui/ (shadcn-style) · layout/ · shared/
-│   │   ├── pages/            # Login, Dashboard, Upload, Queue, analysis/*
-│   │   ├── data/             # Mock data layer (types, investigations, deep-dive)
-│   │   ├── lib/              # utils, nav config
-│   │   └── index.css         # Design system / theme tokens
-│   ├── tailwind.config.js
-│   ├── Dockerfile · nginx.conf
+│   │   ├── components/        # ui (shadcn-style) · layout · shared widgets
+│   │   ├── pages/             # Login, Dashboard, Upload, Queue, analysis/*
+│   │   ├── data/              # Types + demo (mock) fallback dataset
+│   │   ├── lib/               # api client (VITE_USE_BACKEND switch), utils
+│   │   └── index.css          # design system / theme tokens
+│   ├── .env.example           # VITE_USE_BACKEND=true, /api base URL
 │   └── package.json
-├── backend/                  # FastAPI service
+├── backend/                   # FastAPI service
 │   ├── app/
-│   │   ├── main.py           # App entrypoint + routers
-│   │   ├── config.py         # Settings (env-driven)
-│   │   ├── routers/          # dashboard · investigations · upload
-│   │   ├── data/mock_data.py # Simulated SOC dataset
-│   │   └── ai/engine.py      # AI verdict engine (simulator ⇄ LLM)
-│   ├── requirements.txt
-│   └── Dockerfile
-├── database/
-│   └── init.sql              # PostgreSQL schema + seed
-├── scripts/                  # Convenience run scripts (Windows + Linux)
-├── docker-compose.yml        # Full-stack topology
-├── steps.txt                 # Beginner-friendly setup & run guide
+│   │   ├── main.py            # app entrypoint + CORS + health
+│   │   ├── config.py          # env-driven settings (SQLite default)
+│   │   ├── database.py        # SQLAlchemy session + init
+│   │   ├── models.py          # Investigation / AnalysisResult
+│   │   ├── routers/           # dashboard · investigations · upload
+│   │   └── services/
+│   │       ├── storage.py     # secure streaming upload + hashing
+│   │       ├── analysis/      # static analyzers (PE/Office/PDF/Image/scripts/strings/entropy/yara/score)
+│   │       ├── detection/     # evidence · IOC · rules · MITRE · graph
+│   │       ├── ai/            # Ollama provider · prompt · strict validation
+│   │       └── reports/       # ReportLab PDF report (context builder + render)
+│   ├── tests/                 # 92 pytest tests (isolated temp DB)
+│   ├── .env.example
+│   └── requirements.txt       # pinned dependencies
+├── docs/                      # design + status docs (ARCHITECTURE, API, DATABASE, CHANGELOG…)
+├── docker-compose.yml         # optional full-stack scaffold
 └── README.md
 ```
 
 ---
 
-## 🚀 Quick Start
+## Known Limitations
 
-The fastest path — **frontend only** (self-contained, mock data, no backend needed):
-
-```bash
-cd frontend
-npm install
-npm run dev
-# open http://localhost:5173  → click "Access console"
-```
-
-Full stack with Docker:
-
-```bash
-docker compose up --build
-# frontend → http://localhost:8080
-# backend  → http://localhost:8000/docs
-```
-
-➡️ **See [`steps.txt`](./steps.txt) for the complete, beginner-friendly setup guide**
-(software versions, Windows + Linux, environment variables, troubleshooting).
+- **Dynamic / Network / Threat-Intel deep-dive pages** still render the mock prototype dataset;
+  this platform is static-analysis-only and never executes samples.
+- **Threat-intel feeds** (`/threat-intel`) return stored IOCs; external enrichment is pending.
+- **Authentication** is a demo gate — any credentials pass; there is no real identity provider.
+- **AI** requires a local Ollama; without it the AI sections show a labelled "unavailable" state.
+- The upload accepts any file type, but analysis depth depends on the installed analyzers
+  (PE / Office / PDF / Image / script text).
 
 ---
 
-## 🖼️ Screenshots
+## Build History
 
-> _Add screenshots / a screen recording here for your presentation._
+Phase-completed log in [`docs/CHANGELOG.md`](./docs/CHANGELOG.md) and live status in
+[`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md).
 
-| | |
-|---|---|
-| `docs/screenshots/dashboard.png` — SOC Dashboard | `docs/screenshots/ai.png` — AI Investigation |
-| `docs/screenshots/dynamic.png` — Dynamic Analysis | `docs/screenshots/network.png` — C2 Map |
-| `docs/screenshots/mitre.png` — ATT&CK Matrix | `docs/screenshots/report.png` — Report |
-
----
-
-## 🔭 Future Scope
-
-- **Real sandbox integration** — wire CAPE/Cuckoo for live detonation and PCAP capture.
-- **Live threat-intel connectors** — VirusTotal, OTX, AbuseIPDB, MISP with API keys.
-- **Production LLM pipeline** — enable LangChain + FAISS RAG over a real behaviour corpus.
-- **Automated IR playbooks** — SOAR-style containment actions and ticketing (Jira/ServiceNow).
-- **Multi-tenant RBAC & SSO** — SAML/OIDC, per-role dashboards for the five user personas.
-- **YARA/Sigma rule authoring** — in-app rule editor with backtesting.
-- **Historical hunting & clustering** — sample similarity graph, campaign attribution.
-- **Real-time collaboration** — shared case notes, analyst hand-off, audit trail.
+1. **Phase 1** — real DB layer, secure upload, live Dashboard/Queue/Upload.
+2. **Phase 2** — static analysis engine (analyzers, strings, entropy, YARA-lite, scoring).
+3. **Phase 3** — detection & evidence engine (IOCs, correlation rules, MITRE, graph).
+4. **Phase 4** — AI/Ollama interpretation engine (interpretation only, strict validation).
+5. **Phase 7** — investigation PDF report (server-generated, frontend Report page).
 
 ---
 
-## ⚠️ Known Limitations
-
-- Analysis data for the deep-dive pages is **simulated** for the featured case (`AGS-2026-0412`);
-  it demonstrates fidelity, not live detonation.
-- Authentication is a **demo gate** (no real identity provider) — any credentials pass.
-- The AI verdict uses a **deterministic simulator** by default (no LLM call).
-- Threat-intel figures are representative mock values unless real API keys are supplied.
-- Frontend and backend both carry their own copy of the mock dataset so each runs standalone;
-  in production this is a single source of truth in PostgreSQL.
-
----
-
-## 🧑‍🎓 About
-
-Built as an **MSc Cyber Security** project prototype to demonstrate the complete design and
-user experience of an AI-assisted malware-analysis SOC platform.
-
-**Primary user:** SOC Analyst · **Secondary:** Malware Analyst, Threat Hunter, Incident Response, SOC Manager.
-
-<div align="center">
-<sub>Aegis Sandbox AI — demonstration prototype. Not for production security use.</sub>
-</div>
+> **Scope note:** a prototype for a B.E. demonstration, not a production security product.
+> For setup details see [`steps.txt`](./steps.txt).
