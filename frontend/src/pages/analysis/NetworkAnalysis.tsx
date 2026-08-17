@@ -1,37 +1,158 @@
+import { useOutletContext } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  AreaChart,
-  Area,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
-import { Network, Globe, Server, ArrowDownUp } from "lucide-react";
+  Globe,
+  Link2,
+  Server,
+  Mail,
+  Hash,
+  Loader2,
+  Info,
+  ShieldAlert,
+  ArrowDownUp,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SeverityBadge } from "@/components/ui/badge";
-import { networkAnalysis as n } from "@/data/deepdive";
-import { cn, formatBytes } from "@/lib/utils";
-import { WorldMap } from "@/components/shared/WorldMap";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { networkAnalysis as mockNet, iocs as mockIocs } from "@/data/deepdive";
+import { api, USE_BACKEND } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import type { Investigation } from "@/data/types";
+import type { Severity } from "@/components/ui/badge";
+
+type LiveIoc = {
+  id: string;
+  type: string;
+  value: string;
+  severity: string;
+  confidence: number;
+  sources: { module: string; evidence_id: string; context: string }[];
+  count: number;
+  mitre_techniques: string[];
+};
+
+type LiveEvidence = {
+  id: string;
+  category: string;
+  type: string;
+  value: string;
+  source_module: string;
+  severity: string;
+  confidence: number;
+  description: string;
+  evidence: string;
+  mitre_techniques: string[];
+};
+
+const NETWORK_IOC_TYPES = new Set(["url", "domain", "ip", "email"]);
 
 export default function NetworkAnalysis() {
-  const maliciousConns = n.connections.filter((c) => c.malicious).length;
+  const { inv } = useOutletContext<{ inv: Investigation }>();
+
+  const staticQ = useQuery({
+    queryKey: ["static", inv.id],
+    queryFn: () => api.getStaticAnalysis(inv.id),
+    enabled: USE_BACKEND && inv.status === "completed",
+    retry: 1,
+  });
+
+  const iocQ = useQuery({
+    queryKey: ["iocs", inv.id],
+    queryFn: () => api.getIocs(inv.id),
+    enabled: USE_BACKEND && inv.status === "completed",
+    retry: 1,
+  });
+
+  const allIocs = (iocQ.data?.iocs as LiveIoc[] | undefined) ?? [];
+  const allEvidence =
+    (staticQ.data?.result?.evidence as LiveEvidence[] | undefined) ?? [];
+
+  const networkIocs = allIocs.filter((i) => NETWORK_IOC_TYPES.has(i.type));
+  const networkEvidence = allEvidence.filter(
+    (e) => e.category === "network"
+  );
+
+  const useLive = USE_BACKEND && inv.status === "completed";
+  const isPending = USE_BACKEND && inv.status !== "completed";
+
+  const displayIocs = useLive
+    ? networkIocs
+    : (mockNet.connections ?? []).map(
+        (c) =>
+          ({
+            id: c.destIp,
+            type: "ip",
+            value: c.destIp,
+            severity: c.malicious ? "high" : "info",
+            confidence: c.malicious ? 0.8 : 0.3,
+            sources: [{ module: "network", evidence_id: "", context: `${c.org || "unknown"} · port ${c.destPort}` }],
+            count: 1,
+            mitre_techniques: [],
+          }) as unknown as LiveIoc
+      );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-      {/* Summary tiles */}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-4"
+    >
+      {/* Static analysis only notice */}
+      <Card className="border-medium/20 bg-medium/5">
+        <CardContent className="flex items-start gap-3 pt-5">
+          <Info className="mt-0.5 size-4 shrink-0 text-medium" />
+          <div>
+            <p className="text-sm text-muted-foreground">
+              This platform performs <span className="font-medium text-foreground">static analysis only</span> — the
+              sample is never executed and no runtime network traffic is captured.
+              The indicators below are <span className="font-medium text-foreground">extracted deterministically</span> from
+              the file content (URLs, domains, IPs, and email addresses found in
+              strings, imports, and encoded data).
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { k: n.totalPackets.toLocaleString(), v: "Packets captured", icon: ArrowDownUp, c: "#22d3ee" },
-          { k: formatBytes(n.totalBytes), v: "Total transferred", icon: Server, c: "#6366f1" },
-          { k: n.connections.length, v: "Unique endpoints", icon: Globe, c: "#facc15" },
-          { k: maliciousConns, v: "Malicious endpoints", icon: Network, c: "#f43f5e" },
+          {
+            k: String(networkIocs.length),
+            v: "Network IOCs",
+            icon: Globe,
+            c: "#22d3ee",
+          },
+          {
+            k: String(networkEvidence.length),
+            v: "Network evidence",
+            icon: ShieldAlert,
+            c: "#facc15",
+          },
+          {
+            k: String(
+              networkIocs.filter((i) => i.type === "ip").length
+            ),
+            v: "IP addresses",
+            icon: Server,
+            c: "#6366f1",
+          },
+          {
+            k: String(
+              networkIocs.filter((i) => i.type === "url").length +
+                networkIocs.filter((i) => i.type === "domain").length
+            ),
+            v: "URLs / domains",
+            icon: Link2,
+            c: "#f43f5e",
+          },
         ].map((s) => (
           <Card key={s.v}>
             <CardContent className="flex items-center gap-3 pt-5">
-              <div className="grid size-10 place-items-center rounded-lg" style={{ background: `${s.c}1a`, color: s.c }}>
+              <div
+                className="grid size-10 place-items-center rounded-lg"
+                style={{ background: `${s.c}1a`, color: s.c }}
+              >
                 <s.icon className="size-5" />
               </div>
               <div>
@@ -43,163 +164,173 @@ export default function NetworkAnalysis() {
         ))}
       </div>
 
-      {/* Map + packet timeline */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Globe className="size-4 text-primary" /> C2 Infrastructure Map</CardTitle>
-            <span className="text-xs text-muted-foreground">geolocated outbound connections</span>
-          </CardHeader>
-          <CardContent>
-            <WorldMap connections={n.connections} />
-            <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-critical" /> Malicious</span>
-              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-success" /> Benign</span>
-              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-primary" /> Sandbox origin</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Packet Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={n.packetTimeline} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="gOut" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f43f5e" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="#f43f5e" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gIn" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" vertical={false} />
-                  <XAxis dataKey="t" tick={{ fill: "#8b9ab5", fontSize: 9 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}s`} interval={5} />
-                  <YAxis tick={{ fill: "#8b9ab5", fontSize: 9 }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: "rgba(17,26,46,0.96)", border: "1px solid rgba(148,163,184,0.18)", borderRadius: 10, fontSize: 12 }} labelFormatter={(v) => `t = ${v}s`} />
-                  <Area type="monotone" dataKey="inbound" stroke="#22d3ee" strokeWidth={1.5} fill="url(#gIn)" />
-                  <Area type="monotone" dataKey="outbound" stroke="#f43f5e" strokeWidth={1.5} fill="url(#gOut)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-primary" /> Inbound</span>
-              <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-critical" /> Outbound</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tables */}
-      <Tabs defaultValue="connections">
+      {/* Tabs: IOCs + Evidence */}
+      <Tabs defaultValue="iocs">
         <TabsList className="mb-4">
-          <TabsTrigger value="connections">Connections</TabsTrigger>
-          <TabsTrigger value="dns">DNS</TabsTrigger>
-          <TabsTrigger value="http">HTTP / HTTPS</TabsTrigger>
+          <TabsTrigger value="iocs">
+            <Globe className="mr-1.5 inline size-3.5" /> Network IOCs
+          </TabsTrigger>
+          <TabsTrigger value="evidence">
+            <ArrowDownUp className="mr-1.5 inline size-3.5" /> Network Evidence
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="connections">
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-[0.7rem] uppercase tracking-wide text-muted-foreground">
-                    <th className="px-5 py-3 font-medium">Destination</th>
-                    <th className="px-3 py-3 font-medium">Port</th>
-                    <th className="px-3 py-3 font-medium">Location</th>
-                    <th className="px-3 py-3 font-medium">ASN / Org</th>
-                    <th className="px-3 py-3 font-medium">Data</th>
-                    <th className="px-3 py-3 font-medium">Role</th>
-                    <th className="px-5 py-3 text-right font-medium">Verdict</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {n.connections.map((c) => (
-                    <tr key={c.destIp} className="border-b border-border/50 last:border-0 hover:bg-surface-overlay/30">
-                      <td className="px-5 py-3 font-mono text-foreground">{c.destIp}</td>
-                      <td className="px-3 py-3 font-mono text-muted-foreground">{c.destPort}</td>
-                      <td className="px-3 py-3">
-                        <span className="flex items-center gap-1.5 text-muted-foreground"><span className="font-mono text-[0.7rem]">{c.countryCode}</span>{c.city}, {c.country}</span>
-                      </td>
-                      <td className="px-3 py-3 text-muted-foreground"><span className="font-mono text-xs">{c.asn}</span> · {c.org}</td>
-                      <td className="px-3 py-3 font-mono text-muted-foreground">{formatBytes(c.bytes)}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground">{c.role}</td>
-                      <td className="px-5 py-3 text-right">{c.malicious ? <SeverityBadge severity="critical" label="malicious" /> : <SeverityBadge severity="clean" label="benign" />}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        <TabsContent value="iocs">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="size-4 text-primary" /> Extracted Network
+                Indicators
+              </CardTitle>
+              <span className="text-xs text-muted-foreground">
+                URLs, domains, IPs, and email addresses found in the sample
+              </span>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              {isPending ? (
+                <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Waiting for
+                  analysis…
+                </div>
+              ) : displayIocs.length === 0 ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">
+                  No network indicators found in this sample.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="border-y border-border text-left text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+                        <th className="px-5 py-2.5 font-medium">Type</th>
+                        <th className="px-3 py-2.5 font-medium">Indicator</th>
+                        <th className="px-3 py-2.5 font-medium">Source</th>
+                        <th className="px-3 py-2.5 font-medium">Confidence</th>
+                        <th className="px-5 py-2.5 text-right font-medium">
+                          Severity
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayIocs.map((ioc, i) => (
+                        <tr
+                          key={i}
+                          className="border-b border-border/50 last:border-0 hover:bg-surface-overlay/30"
+                        >
+                          <td className="px-5 py-2.5">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-surface-overlay/60 px-2 py-1 text-xs text-muted-foreground">
+                              {ioc.type === "ip" && (
+                                <Server className="size-3.5" />
+                              )}
+                              {ioc.type === "url" && (
+                                <Link2 className="size-3.5" />
+                              )}
+                              {ioc.type === "domain" && (
+                                <Globe className="size-3.5" />
+                              )}
+                              {ioc.type === "email" && (
+                                <Mail className="size-3.5" />
+                              )}
+                              {ioc.type}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 break-all font-mono text-xs text-foreground">
+                            {ioc.value}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                            {(ioc as LiveIoc).sources?.[0]?.module ?? "—"}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-muted-foreground">
+                            {typeof (ioc as LiveIoc).confidence === "number"
+                              ? `${((ioc as LiveIoc).confidence * 100).toFixed(0)}%`
+                              : "n/a"}
+                          </td>
+                          <td className="px-5 py-2.5 text-right">
+                            <SeverityBadge
+                              severity={ioc.severity as Severity}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="dns">
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-[0.7rem] uppercase tracking-wide text-muted-foreground">
-                    <th className="px-5 py-3 font-medium">Domain</th>
-                    <th className="px-3 py-3 font-medium">Type</th>
-                    <th className="px-3 py-3 font-medium">Response</th>
-                    <th className="px-3 py-3 font-medium">Category</th>
-                    <th className="px-5 py-3 text-right font-medium">Verdict</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {n.dns.map((q) => (
-                    <tr key={q.domain} className="border-b border-border/50 last:border-0 hover:bg-surface-overlay/30">
-                      <td className={cn("px-5 py-3 font-mono", q.malicious ? "text-critical" : "text-foreground")}>{q.domain}</td>
-                      <td className="px-3 py-3 font-mono text-muted-foreground">{q.type}</td>
-                      <td className="px-3 py-3 font-mono text-muted-foreground">{q.response}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground">{q.category}</td>
-                      <td className="px-5 py-3 text-right">{q.malicious ? <SeverityBadge severity="high" label="malicious" /> : <SeverityBadge severity="clean" label="benign" />}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="http">
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-[0.7rem] uppercase tracking-wide text-muted-foreground">
-                    <th className="px-5 py-3 font-medium">Method</th>
-                    <th className="px-3 py-3 font-medium">Host</th>
-                    <th className="px-3 py-3 font-medium">URI</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-3 py-3 font-medium">Content-Type</th>
-                    <th className="px-5 py-3 text-right font-medium">Verdict</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {n.http.map((h, i) => (
-                    <tr key={i} className="border-b border-border/50 last:border-0 hover:bg-surface-overlay/30">
-                      <td className="px-5 py-3"><span className="rounded bg-surface-overlay/70 px-1.5 py-0.5 font-mono text-[0.7rem] text-foreground">{h.method}</span></td>
-                      <td className="px-3 py-3">
-                        <span className="flex items-center gap-1.5">
-                          <span className={cn("rounded px-1 py-0.5 font-mono text-[0.6rem] uppercase", h.scheme === "https" ? "bg-success/10 text-success" : "bg-medium/10 text-medium")}>{h.scheme}</span>
-                          <span className={cn("font-mono", h.suspicious ? "text-critical" : "text-foreground")}>{h.host}</span>
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 max-w-[200px] truncate font-mono text-xs text-muted-foreground">{h.uri}</td>
-                      <td className="px-3 py-3 font-mono text-success">{h.status}</td>
-                      <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{h.contentType}</td>
-                      <td className="px-5 py-3 text-right">{h.suspicious ? <SeverityBadge severity="high" label="suspicious" /> : <SeverityBadge severity="clean" label="benign" />}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        <TabsContent value="evidence">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowDownUp className="size-4 text-primary" /> Network
+                Evidence
+              </CardTitle>
+              <span className="text-xs text-muted-foreground">
+                Observed indicators from static analysis (strings, PE imports,
+                YARA rules)
+              </span>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              {isPending ? (
+                <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Waiting for
+                  analysis…
+                </div>
+              ) : networkEvidence.length === 0 ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">
+                  No network-category evidence found in this sample.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="border-y border-border text-left text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+                        <th className="px-5 py-2.5 font-medium">Type</th>
+                        <th className="px-3 py-2.5 font-medium">Value</th>
+                        <th className="px-3 py-2.5 font-medium">Description</th>
+                        <th className="px-3 py-2.5 font-medium">Module</th>
+                        <th className="px-3 py-2.5 font-medium">MITRE</th>
+                        <th className="px-5 py-2.5 text-right font-medium">
+                          Severity
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {networkEvidence.map((ev, i) => (
+                        <tr
+                          key={ev.id || i}
+                          className="border-b border-border/50 last:border-0 hover:bg-surface-overlay/30"
+                        >
+                          <td className="px-5 py-2.5">
+                            <span className="rounded-md bg-surface-overlay/60 px-2 py-1 text-xs text-muted-foreground">
+                              {ev.type}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 break-all font-mono text-xs text-foreground">
+                            {ev.value}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                            {ev.description}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                            {ev.source_module}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-[0.7rem] text-accent">
+                            {ev.mitre_techniques?.join(", ") || "—"}
+                          </td>
+                          <td className="px-5 py-2.5 text-right">
+                            <SeverityBadge
+                              severity={ev.severity as Severity}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
