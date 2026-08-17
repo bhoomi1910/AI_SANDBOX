@@ -6,17 +6,39 @@ const API_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "ht
 export const USE_BACKEND = (import.meta.env.VITE_USE_BACKEND ?? "true") !== "false";
 
 export interface DashboardStats {
-  totalInvestigations: { value: number; delta: number | null; spark: number[] };
-  activeAnalyses: { value: number; delta: number | null; spark: number[] };
-  criticalAlerts: { value: number; delta: number | null; spark: number[] };
-  completedAnalyses: { value: number; delta: number | null; spark: number[] };
+  summary: {
+    total: number;
+    active: number;
+    completed: number;
+    failed: number;
+    pending: number;
+    today: number;
+  };
   statusDistribution: Record<string, number>;
   severityBreakdown: { name: string; value: number; color: string }[];
-  recentInvestigations: Investigation[];
+  verdictDistribution: { name: string; value: number; color: string }[];
+  fileTypeDistribution: { name: string; value: number; color: string }[];
   malwareFamilies: { name: string; value: number; color: string }[];
-  threatFeed: { id: string; time: string; title: string; source: string; severity: string }[];
+  timeline: { date: string; count: number }[];
+  recentInvestigations: Investigation[];
+  highRiskInvestigations: Investigation[];
+  iocStatistics: {
+    total: number;
+    by_type: { type: string; count: number }[];
+  };
+  yaraStatistics: {
+    total_matches: number;
+    investigations_with_matches: number;
+    top_rules: { rule: string; count: number }[];
+  };
+  mitreStatistics: {
+    total_techniques: number;
+    unique_techniques: number;
+    investigations_with_mitre: number;
+    top_techniques: { technique: string; count: number }[];
+    top_tactics: { tactic: string; count: number }[];
+  };
   systemHealth: { name: string; detail: string; status: "operational" | "degraded"; load: number }[];
-  topAnalysts: { name: string; cases: number; avatar: string; accuracy: number }[];
   note: string;
 }
 

@@ -210,6 +210,60 @@ The project follows a version-based development approach, where each release int
 
 ---
 
+## 2026-08-17 — Dashboard Analytics
+
+### Added
+- **Backend dashboard aggregation** (`backend/app/routers/dashboard.py`):
+  Single `GET /api/dashboard/stats` endpoint now returns:
+  - `summary`: total, active, completed, failed, pending, today counts
+  - `statusDistribution`: GROUP BY status
+  - `severityBreakdown`: GROUP BY severity with colors
+  - `verdictDistribution`: GROUP BY verdict (malicious/suspicious/clean)
+  - `fileTypeDistribution`: GROUP BY file_type (exe/pdf/docx/dll/etc.)
+  - `malwareFamilies`: top families excluding Pending/Unknown/None
+  - `timeline`: 30-day investigation count per day
+  - `recentInvestigations`: last 8
+  - `highRiskInvestigations`: critical + high severity, latest 10
+  - `iocStatistics`: total + count by type from analysis_results JSON
+  - `yaraStatistics`: total matches, investigations with matches, top rules
+  - `mitreStatistics`: unique techniques, top techniques, top tactics
+  - `systemHealth`: existing component status
+  All statistics are derived from persisted database records — no fabricated data.
+
+- **Frontend dashboard** (`frontend/src/pages/Dashboard.tsx`):
+  - Two KPI rows (8 tiles): total, active, completed, failed, today, IOCs, YARA matches, MITRE techniques
+  - Investigation activity area chart (30-day timeline)
+  - Severity distribution donut + horizontal bar
+  - File type distribution bar chart
+  - Verdict distribution donut
+  - Top malware families donut
+  - IOC overview with type breakdown bars
+  - YARA match overview with top rules
+  - MITRE ATT&CK overview with top techniques/tactics
+  - High-risk investigations table (clickable, navigates to investigation)
+  - System health status
+  - AI engine info card
+  - All sections consume backend API data; demo fallback preserved for USE_BACKEND=false
+  - Loading, error, and empty states maintained
+
+- **20 new backend tests** (`backend/tests/test_dashboard.py`):
+  Empty database (6 tests), populated database relative tests (14 tests), corrupt JSON resilience, no file content exposure. Total: **112 tests**.
+
+### Changed
+- `backend/app/routers/dashboard.py`: complete rewrite from 92 to 220 lines
+- `frontend/src/lib/api.ts`: `DashboardStats` type updated to match new response
+- `frontend/src/data/dashboard.ts`: added mock data for new demo sections
+- `backend/tests/test_health.py`: updated for new response shape
+
+### Security
+- Dashboard API exposes only aggregated statistics; no file contents, storage paths, or internal details are leaked.
+- Corrupt analysis_results.data JSON is handled gracefully without exceptions.
+
+### Known issues (not yet fixed)
+- `npm run lint` still broken (`eslint` not in devDependencies).
+
+---
+
 # Versioning Strategy
 
 The project follows **Semantic Versioning (SemVer)**.
@@ -649,8 +703,8 @@ When contributing to the project:
 | Static Analysis Engine | ✅ Completed |
 | Threat Detection Modules | ✅ Completed |
 | AI Integration (Ollama) | ✅ Completed |
-| Report Generation | 🚧 Planned |
-| Dashboard Analytics | 🚧 Planned |
+| Report Generation | ✅ Completed |
+| Dashboard Analytics | ✅ Completed |
 | Threat Intelligence Integration | 📅 Future |
 | AI Investigation Assistant | 📅 Future |
 | Version 2.0 Release | 🎯 Long-Term Goal |

@@ -15,7 +15,7 @@ export const dashboardStats = {
   meanTimeToVerdict: { value: 6.4, unit: "min", delta: -18.2, spark: [12, 11, 10, 9, 8.5, 8, 7.2, 7, 6.8, 6.4] },
 };
 
-// 30-day investigation vs detection trend
+// 30-day investigation trend (used as fallback when backend unavailable)
 export const trendData = Array.from({ length: 30 }, (_, i) => {
   const base = 28 + Math.sin(i / 3) * 8 + i * 0.6;
   return {
@@ -26,16 +26,6 @@ export const trendData = Array.from({ length: 30 }, (_, i) => {
   };
 });
 
-export const malwareFamilies: { name: string; value: number; color: string }[] = [
-  { name: "Emotet", value: 284, color: "#f43f5e" },
-  { name: "Qakbot", value: 212, color: "#fb923c" },
-  { name: "LockBit", value: 176, color: "#facc15" },
-  { name: "RedLine", value: 148, color: "#22d3ee" },
-  { name: "Cobalt Strike", value: 121, color: "#6366f1" },
-  { name: "AgentTesla", value: 98, color: "#34d399" },
-  { name: "Other", value: 245, color: "#64748b" },
-];
-
 export const severityBreakdown: { name: string; value: number; color: string }[] = [
   { name: "Critical", value: 187, color: "#f43f5e" },
   { name: "High", value: 342, color: "#fb923c" },
@@ -44,24 +34,79 @@ export const severityBreakdown: { name: string; value: number; color: string }[]
   { name: "Clean", value: 86, color: "#34d399" },
 ];
 
-// Live threat intel feed
-export const threatFeed: FeedItem[] = [
-  { id: "f1", time: "2m ago", title: "New Emotet C2 cluster observed — 14 IPs added to blocklist", source: "AlienVault OTX", severity: "critical" },
-  { id: "f2", time: "8m ago", title: "CVE-2026-21882 actively exploited in the wild (Win32k EoP)", source: "CISA KEV", severity: "high" },
-  { id: "f3", time: "15m ago", title: "LockBit 3.0 affiliate targeting healthcare — new TTPs", source: "MITRE ATT&CK", severity: "critical" },
-  { id: "f4", time: "24m ago", title: "Phishing kit 'EvilProxy' bypassing MFA — 2FA session theft", source: "VirusTotal", severity: "high" },
-  { id: "f5", time: "38m ago", title: "RedLine Stealer distributed via cracked-software SEO poisoning", source: "AbuseIPDB", severity: "medium" },
-  { id: "f6", time: "51m ago", title: "Qakbot resurfaces with OneNote delivery after takedown", source: "AlienVault OTX", severity: "high" },
-  { id: "f7", time: "1h ago", title: "Cobalt Strike watermark 0x5f2a3b1c linked to APT29 infra", source: "Threat Intel", severity: "high" },
+export const verdictDistribution: { name: string; value: number; color: string }[] = [
+  { name: "Malicious", value: 529, color: "#f43f5e" },
+  { name: "Suspicious", value: 669, color: "#facc15" },
+  { name: "Clean", value: 86, color: "#34d399" },
 ];
 
+export const fileTypeDistribution: { name: string; value: number; color: string }[] = [
+  { name: "exe", value: 412, color: "#f43f5e" },
+  { name: "pdf", value: 287, color: "#facc15" },
+  { name: "docx", value: 234, color: "#22d3ee" },
+  { name: "dll", value: 156, color: "#fb923c" },
+  { name: "zip", value: 98, color: "#34d399" },
+  { name: "iso", value: 52, color: "#a78bfa" },
+  { name: "script", value: 45, color: "#6366f1" },
+];
+
+export const iocStatistics = {
+  total: 3842,
+  by_type: [
+    { type: "url", count: 1245 },
+    { type: "ip", count: 876 },
+    { type: "domain", count: 654 },
+    { type: "hash", count: 432 },
+    { type: "email", count: 287 },
+    { type: "registry", count: 198 },
+    { type: "command", count: 98 },
+    { type: "windows_path", count: 52 },
+  ],
+};
+
+export const yaraStatistics = {
+  total_matches: 847,
+  investigations_with_matches: 423,
+  top_rules: [
+    { rule: "Emotet_Loader", count: 124 },
+    { rule: "Packed_PE", count: 98 },
+    { rule: "Cobalt_Strike_Beacon", count: 67 },
+    { rule: "PDF_Phishing", count: 54 },
+    { rule: "VBA_Downloader", count: 43 },
+    { rule: "Ransomware_Indicators", count: 38 },
+    { rule: "PowerShell_Obfuscation", count: 32 },
+  ],
+};
+
+export const mitreStatistics = {
+  total_techniques: 2156,
+  unique_techniques: 18,
+  investigations_with_mitre: 654,
+  top_techniques: [
+    { technique: "T1566", count: 234 },
+    { technique: "T1055", count: 187 },
+    { technique: "T1059", count: 156 },
+    { technique: "T1071", count: 134 },
+    { technique: "T1547", count: 98 },
+    { technique: "T1204", count: 87 },
+    { technique: "T1105", count: 76 },
+    { technique: "T1486", count: 54 },
+  ],
+  top_tactics: [
+    { tactic: "Execution", count: 456 },
+    { tactic: "Defense Evasion", count: 345 },
+    { tactic: "Command and Control", count: 287 },
+    { tactic: "Initial Access", count: 234 },
+    { tactic: "Persistence", count: 198 },
+    { tactic: "Collection", count: 123 },
+  ],
+};
+
 export const systemHealth = [
-  { name: "Sandbox Cluster", detail: "8 / 12 VMs active", status: "operational" as const, load: 67 },
-  { name: "Analysis Engine", detail: "Static + Dynamic workers", status: "operational" as const, load: 54 },
-  { name: "AI Inference (LLM)", detail: "RAG + FAISS index warm", status: "operational" as const, load: 71 },
-  { name: "Threat Intel Feeds", detail: "5 / 5 sources syncing", status: "operational" as const, load: 33 },
-  { name: "PCAP Processor", detail: "Zeek + Suricata pipeline", status: "degraded" as const, load: 88 },
-  { name: "Report Generator", detail: "PDF export service", status: "operational" as const, load: 21 },
+  { name: "Analysis API", detail: "FastAPI + SQLite", status: "operational" as const, load: 23 },
+  { name: "Static Analysis", detail: "PE/PDF/Office/Script + YARA-lite", status: "operational" as const, load: 34 },
+  { name: "AI Inference (LLM)", detail: "Ollama local", status: "degraded" as const, load: 0 },
+  { name: "Threat Intel Feeds", detail: "Module not yet implemented", status: "degraded" as const, load: 0 },
 ];
 
 export const topAnalysts = [
