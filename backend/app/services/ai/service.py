@@ -61,7 +61,7 @@ def run_ai_analysis(context: dict, provider: AIProvider | None = None) -> dict:
         return {
             "status": "error",
             "provider": provider.label(),
-            "reason": f"unexpected AI engine failure: {exc}",
+            "reason": "Unexpected AI engine failure",
             "note": "AI analysis failed unexpectedly and was rejected. "
                     "Deterministic analysis is unaffected.",
         }

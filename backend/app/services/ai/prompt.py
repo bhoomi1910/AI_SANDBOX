@@ -13,6 +13,14 @@ Every important claim should reference the listed findings/evidence.
 """
 from __future__ import annotations
 
+import re
+
+
+def _sanitize_for_prompt(value: str) -> str:
+    """Remove newlines and control characters to prevent prompt injection via filenames."""
+    return re.sub(r'[\x00-\x1f\x7f\n\r]', '', str(value))[:200]
+
+
 _SCHEMA_DOC = """Respond with a single JSON object and nothing else. Schema:
 {
   "executive_summary": "string, 2-4 sentences, plain language",
@@ -59,7 +67,8 @@ def build_prompt(context: dict) -> str:
     lines = [_RULES, "", "## Deterministic analysis output", ""]
 
     lines.append("### File")
-    lines.append(f"- filename: {file_info.get('filename', 'unknown')}")
+    safe_filename = _sanitize_for_prompt(file_info.get('filename', 'unknown'))
+    lines.append(f"- filename: {safe_filename}")
     lines.append(f"- type: {file_info.get('file_type', 'unknown')} / family: {file_info.get('family', 'unknown')}")
     lines.append(f"- classification: {context.get('classification', 'n/a')}")
     lines.append("")

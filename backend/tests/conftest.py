@@ -14,6 +14,10 @@ os.environ["UPLOAD_DIR"] = str(_TMP / "uploads")
 os.environ["REPORT_DIR"] = str(_TMP / "reports")
 os.environ["MAX_UPLOAD_SIZE"] = str(1 * 1024 * 1024)  # 1 MiB
 
+# Create directories before app imports
+(_TMP / "uploads").mkdir(exist_ok=True)
+(_TMP / "reports").mkdir(exist_ok=True)
+
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 

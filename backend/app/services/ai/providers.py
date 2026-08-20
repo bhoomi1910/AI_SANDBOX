@@ -115,3 +115,13 @@ def get_provider() -> AIProvider:
     if _PROVIDER is None:
         _PROVIDER = OllamaProvider()
     return _PROVIDER
+
+
+def is_ai_available() -> bool:
+    """Quick check whether Ollama is reachable and has models. Never raises."""
+    try:
+        provider = get_provider()
+        provider.list_models()
+        return True
+    except (AIUnavailable, Exception):
+        return False

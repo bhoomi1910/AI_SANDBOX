@@ -159,16 +159,18 @@ def dashboard_stats(db: Session = Depends(get_db)):
         reverse=True,
     )
 
-    # ── Malware family distribution ──────────────────────────────
-    family_counts = Counter()
-    all_invs = db.query(Investigation).all()
-    for inv in all_invs:
-        fam = inv.malware_family
-        if fam and fam not in ("Pending", "Unknown", "None", ""):
-            family_counts[fam] += 1
+    # ── Malware family distribution (SQL aggregation) ─────────────
+    family_rows = (
+        db.query(Investigation.malware_family, func.count(Investigation.id))
+        .filter(Investigation.malware_family.notin_(["Pending", "Unknown", "None", ""]))
+        .group_by(Investigation.malware_family)
+        .order_by(func.count(Investigation.id).desc())
+        .limit(8)
+        .all()
+    )
     malware_families = [
         {"name": fam, "value": count, "color": SEVERITY_COLORS.get("high", "#fb923c")}
-        for fam, count in family_counts.most_common(8)
+        for fam, count in family_rows
     ]
 
     # ── Timeline (last 30 days) ──────────────────────────────────
@@ -209,9 +211,15 @@ def dashboard_stats(db: Session = Depends(get_db)):
     )
 
     # ── IOC statistics (from analysis_results.data JSON) ─────────
+    # Limit to most recent 500 results to prevent OOM
     ioc_counter: Counter = Counter()
     total_iocs = 0
-    results = db.query(AnalysisResult.data).all()
+    results = (
+        db.query(AnalysisResult.data)
+        .order_by(AnalysisResult.created_at.desc())
+        .limit(500)
+        .all()
+    )
     for (data_str,) in results:
         try:
             payload = json.loads(data_str) if data_str else {}
@@ -267,14 +275,22 @@ def dashboard_stats(db: Session = Depends(get_db)):
     technique_counter: Counter = Counter()
     tactic_counter: Counter = Counter()
     investigations_with_mitre = 0
-    for inv in all_invs:
-        techniques = _load_json(inv.mitre_techniques, [])
+    # Use SQL to get only investigations with MITRE techniques
+    mitre_invs = (
+        db.query(Investigation.mitre_techniques)
+        .filter(Investigation.mitre_techniques != "[]")
+        .filter(Investigation.mitre_techniques.isnot(None))
+        .limit(500)
+        .all()
+    )
+    for (techniques_raw,) in mitre_invs:
+        techniques = _load_json(techniques_raw, [])
         if techniques:
             investigations_with_mitre += 1
             for t in techniques:
                 if isinstance(t, str):
                     technique_counter[t] += 1
-    # Also get tactic info from analysis_results
+    # Also get tactic info from analysis_results (limited set)
     for (data_str,) in results:
         try:
             payload = json.loads(data_str) if data_str else {}

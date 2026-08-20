@@ -15,6 +15,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Create non-root user and directories
+RUN groupadd -r aegis && useradd -r -g aegis -d /app aegis \
+    && mkdir -p /app/uploads /app/reports \
+    && chown -R aegis:aegis /app
+
+USER aegis
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

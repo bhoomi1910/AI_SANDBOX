@@ -42,6 +42,14 @@ class InvestigationUpdate(BaseModel):
     classification: str | None = None
 
 
+_MAX_FIELD_LENGTHS = {
+    "closureNotes": 2000,
+    "assignedTo": 64,
+    "malwareFamily": 64,
+    "classification": 128,
+}
+
+
 @router.get("")
 def list_investigations(status: str | None = None, db: Session = Depends(get_db)):
     query = db.query(Investigation).order_by(Investigation.uploaded_at.desc())
@@ -74,19 +82,19 @@ def update_investigation(inv_id: str, body: InvestigationUpdate, db: Session = D
         changed = True
 
     if body.closureNotes is not None:
-        inv.closure_notes = body.closureNotes
+        inv.closure_notes = body.closureNotes[:_MAX_FIELD_LENGTHS["closureNotes"]]
         changed = True
 
     if body.assignedTo is not None:
-        inv.assigned_to = body.assignedTo
+        inv.assigned_to = body.assignedTo[:_MAX_FIELD_LENGTHS["assignedTo"]]
         changed = True
 
     if body.malwareFamily is not None:
-        inv.malware_family = body.malwareFamily
+        inv.malware_family = body.malwareFamily[:_MAX_FIELD_LENGTHS["malwareFamily"]]
         changed = True
 
     if body.classification is not None:
-        inv.classification = body.classification
+        inv.classification = body.classification[:_MAX_FIELD_LENGTHS["classification"]]
         changed = True
 
     # Close the case if a resolution is set and status is completed
