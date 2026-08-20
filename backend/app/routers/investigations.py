@@ -11,10 +11,11 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import AnalysisResult, Investigation
+from app.models import AnalysisResult, Investigation, utcnow
 from app.services import ai as ai_service
 from app.services.reports import (
     AnalysisIncompleteError,
@@ -24,7 +25,21 @@ from app.services.reports import (
 
 router = APIRouter(prefix="/investigations", tags=["investigations"])
 
-STATUS_FILTERS = {"queued", "running", "analysing", "ai-processing", "completed", "failed"}
+STATUS_FILTERS = {"queued", "running", "analysing", "ai-processing", "completed", "failed", "closed"}
+
+VALID_VERDICTS = {"malicious", "suspicious", "clean"}
+VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
+VALID_RESOLUTIONS = {"true-positive", "false-positive", "escalated", ""}
+
+
+class InvestigationUpdate(BaseModel):
+    verdict: str | None = None
+    severity: str | None = None
+    resolution: str | None = None
+    closureNotes: str | None = None
+    assignedTo: str | None = None
+    malwareFamily: str | None = None
+    classification: str | None = None
 
 
 @router.get("")
@@ -33,6 +48,59 @@ def list_investigations(status: str | None = None, db: Session = Depends(get_db)
     if status and status != "all" and status in STATUS_FILTERS:
         query = query.filter(Investigation.status == status)
     return [inv.to_dict() for inv in query.all()]
+
+
+@router.patch("/{inv_id}")
+def update_investigation(inv_id: str, body: InvestigationUpdate, db: Session = Depends(get_db)):
+    inv = _require(db, inv_id)
+    changed = False
+
+    if body.verdict is not None:
+        if body.verdict not in VALID_VERDICTS:
+            raise HTTPException(400, f"Invalid verdict: {body.verdict}")
+        inv.verdict = body.verdict
+        changed = True
+
+    if body.severity is not None:
+        if body.severity not in VALID_SEVERITIES:
+            raise HTTPException(400, f"Invalid severity: {body.severity}")
+        inv.severity = body.severity
+        changed = True
+
+    if body.resolution is not None:
+        if body.resolution not in VALID_RESOLUTIONS:
+            raise HTTPException(400, f"Invalid resolution: {body.resolution}")
+        inv.resolution = body.resolution
+        changed = True
+
+    if body.closureNotes is not None:
+        inv.closure_notes = body.closureNotes
+        changed = True
+
+    if body.assignedTo is not None:
+        inv.assigned_to = body.assignedTo
+        changed = True
+
+    if body.malwareFamily is not None:
+        inv.malware_family = body.malwareFamily
+        changed = True
+
+    if body.classification is not None:
+        inv.classification = body.classification
+        changed = True
+
+    # Close the case if a resolution is set and status is completed
+    if body.resolution and inv.status == "completed" and not inv.closed_at:
+        inv.status = "closed"
+        inv.closed_at = utcnow()
+        inv.closed_by = "analyst"
+        changed = True
+
+    if changed:
+        db.commit()
+        db.refresh(inv)
+
+    return inv.to_dict()
 
 
 @router.get("/{inv_id}")

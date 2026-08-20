@@ -91,6 +91,14 @@ export const api = {
   getAiAnalysis: (id: string) =>
     request<Record<string, unknown>>(`/investigations/${id}/ai`),
 
+  /** Update investigation fields (verdict, severity, resolution, assignment, etc.). */
+  updateInvestigation: (id: string, patch: Record<string, unknown>) =>
+    request<Investigation>(`/investigations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }),
+
   /** Download the server-generated PDF report for an investigation. */
   getReportPdf: async (id: string) => {
     const res = await fetch(`${API_URL}/investigations/${id}/report/pdf`);

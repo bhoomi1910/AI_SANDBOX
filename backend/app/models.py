@@ -26,7 +26,7 @@ def utcnow() -> datetime:
 class Investigation(Base):
     """One uploaded file -> one investigation. Status lifecycle:
 
-    queued -> running -> analysing -> ai-processing -> completed | failed
+    queued -> running -> analysing -> ai-processing -> completed | failed -> closed
     """
 
     __tablename__ = "investigations"
@@ -61,8 +61,13 @@ class Investigation(Base):
     assigned_to: Mapped[str] = mapped_column(String(64), default="Unassigned")
     submitted_by: Mapped[str] = mapped_column(String(64), default="analyst")
 
+    resolution: Mapped[str] = mapped_column(String(32), default="")       # true-positive / false-positive / escalated
+    closure_notes: Mapped[str] = mapped_column(Text, default="")
+    closed_by: Mapped[str] = mapped_column(String(64), default="")
+
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def to_dict(self) -> dict:
         """API representation matching the frontend Investigation type."""
@@ -92,6 +97,10 @@ class Investigation(Base):
             "totalEngines": self.total_engines,
             "createdAt": self.uploaded_at.isoformat(),
             "completedAt": self.completed_at.isoformat() if self.completed_at else None,
+            "closedAt": self.closed_at.isoformat() if self.closed_at else None,
+            "closedBy": self.closed_by or None,
+            "resolution": self.resolution or None,
+            "closureNotes": self.closure_notes or None,
             "assignedTo": self.assigned_to,
             "tags": _load_json_list(self.tags),
             "mitreTechniques": _load_json_list(self.mitre_techniques),

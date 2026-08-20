@@ -257,6 +257,7 @@ export const statusMeta: Record<
   "ai-processing": { label: "AI Processing", tone: "text-primary bg-primary/10 border-primary/30", dot: "bg-primary animate-pulse" },
   completed: { label: "Completed", tone: "text-success bg-success/10 border-success/30", dot: "bg-success" },
   failed: { label: "Failed", tone: "text-critical bg-critical/10 border-critical/30", dot: "bg-critical" },
+  closed: { label: "Closed", tone: "text-success/70 bg-success/5 border-success/20", dot: "bg-success/60" },
 };
 
 export const getInvestigation = (id: string) =>

@@ -20,6 +20,7 @@ const statusFilters: { key: InvestigationStatus | "all"; label: string }[] = [
   { key: "analysing", label: "Analysing" },
   { key: "ai-processing", label: "AI Processing" },
   { key: "completed", label: "Completed" },
+  { key: "closed", label: "Closed" },
 ];
 
 export default function Queue() {

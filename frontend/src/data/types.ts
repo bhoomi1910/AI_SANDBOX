@@ -8,7 +8,8 @@ export type InvestigationStatus =
   | "analysing"
   | "ai-processing"
   | "completed"
-  | "failed";
+  | "failed"
+  | "closed";
 
 export type FileType = "exe" | "dll" | "pdf" | "docx" | "zip" | "iso";
 
@@ -40,6 +41,10 @@ export interface Investigation {
   totalEngines: number;
   createdAt: string;
   completedAt?: string;
+  closedAt?: string;
+  closedBy?: string;
+  resolution?: "true-positive" | "false-positive" | "escalated";
+  closureNotes?: string;
   assignedTo: string;
   tags: string[];
   mitreTechniques: string[]; // technique IDs

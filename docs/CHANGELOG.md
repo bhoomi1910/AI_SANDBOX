@@ -8,6 +8,61 @@ The project follows a version-based development approach, where each release int
 
 # Development Log (real history)
 
+## 2026-08-20 — Threat Intel UI Hardening + Case Closure
+
+### Added
+- **Threat Intel page hardening** (`frontend/src/pages/analysis/ThreatIntel.tsx`):
+  - IOC type filter badges (click to toggle, shows count per type)
+  - Real-time search across IOC value, type, source module, MITRE technique
+  - Sortable table columns (type, value, confidence, severity)
+  - Copy-to-clipboard button per IOC row with visual confirmation
+  - Filtered count indicator (`filtered / total`)
+  - Improved empty states for "no IOCs" vs "no matches for filter"
+  - External feeds info note moved to bottom of page
+
+- **Case closure & verdict management** (`PATCH /api/investigations/{id}`):
+  - New `PATCH` endpoint for updating investigation fields: verdict, severity,
+    resolution, closureNotes, assignedTo, malwareFamily, classification
+  - Auto-transitions status to `closed` when resolution is set on a completed case
+  - New `InvestigationUpdate` Pydantic model with validation
+  - Backend validation for verdict (malicious/suspicious/clean), severity (critical/high/medium/low/info),
+    resolution (true-positive/false-positive/escalated)
+
+- **Backend model closure fields** (`backend/app/models.py`):
+  - `resolution` (String, default "") — true-positive, false-positive, escalated
+  - `closure_notes` (Text, default "")
+  - `closed_by` (String, default "")
+  - `closed_at` (DateTime, nullable)
+
+- **Frontend case management panel** (`frontend/src/components/shared/InvestigationLayout.tsx`):
+  - Collapsible case management bar on completed/failed investigations
+  - Editable fields: verdict, severity, assigned to, malware family, resolution, closure notes
+  - "Save Changes" button (PATCH without closing)
+  - "Close Case" button (sets resolution + transitions to closed)
+  - Closed case banner showing resolution, closed by, time, and notes
+  - Resolution badge in case header
+
+- **Queue page "Closed" filter** (`frontend/src/pages/Queue.tsx`):
+  - New "Closed" status filter pill
+  - Closed status styling (dimmed success tones)
+
+- **Frontend API client** (`frontend/src/lib/api.ts`):
+  - New `updateInvestigation(id, patch)` method for PATCH requests
+
+- **Frontend types** (`frontend/src/data/types.ts`):
+  - `InvestigationStatus` now includes `"closed"`
+  - `Investigation` interface gains: `closedAt`, `closedBy`, `resolution`, `closureNotes`
+
+### Changed
+- `backend/app/routers/investigations.py`: added `InvestigationUpdate` model, `PATCH` endpoint,
+  expanded `STATUS_FILTERS` to include `"closed"`, added `utcnow` import
+- `frontend/src/data/investigations.ts`: added `closed` entry to `statusMeta`
+
+### Security
+- PATCH endpoint validates all field values server-side before applying
+- Only completed/failed investigations can be closed
+- Resolution and closure fields are optional — no forced data entry
+
 ## 2026-08-09 — Phase 1: Stabilization (project root = `Desktop\AI Sandbox`)
 
 ### Added
