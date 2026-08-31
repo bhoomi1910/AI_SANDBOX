@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SeverityBadge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/shared/ScoreRing";
-import { DataRow, SectionLabel } from "@/components/ui/misc";
+import { SectionLabel } from "@/components/ui/misc";
 import { aiInvestigation as mockAi } from "@/data/deepdive";
 import { cn } from "@/lib/utils";
 import { api, USE_BACKEND } from "@/lib/api";

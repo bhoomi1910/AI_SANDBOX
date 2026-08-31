@@ -21,7 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SeverityBadge } from "@/components/ui/badge";
 import { ScoreRing } from "@/components/shared/ScoreRing";
-import { SectionLabel, DataRow } from "@/components/ui/misc";
+import { DataRow } from "@/components/ui/misc";
 import { api, USE_BACKEND } from "@/lib/api";
 import { cn, formatBytes } from "@/lib/utils";
 import type { Investigation } from "@/data/types";
@@ -44,7 +44,6 @@ type LiveAi = {
 };
 
 type Finding = Record<string, unknown>;
-type Ioc = Record<string, unknown>;
 type Technique = Record<string, unknown>;
 
 export default function Report() {

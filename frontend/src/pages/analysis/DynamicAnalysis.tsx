@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Cpu,
-  ArrowRight,
   Shield,
   Loader2,
   Info,
@@ -13,7 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, SeverityBadge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { dynamicAnalysis as mockDyn, iocs as mockIocs } from "@/data/deepdive";
+import { dynamicAnalysis as mockDyn } from "@/data/deepdive";
 import { api, USE_BACKEND } from "@/lib/api";
 import type { Investigation } from "@/data/types";
 import type { Severity } from "@/components/ui/badge";

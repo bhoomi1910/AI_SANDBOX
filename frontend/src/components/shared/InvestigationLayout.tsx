@@ -22,8 +22,6 @@ import { api, USE_BACKEND } from "@/lib/api";
 import { SeverityBadge } from "@/components/ui/badge";
 import { CopyChip } from "@/components/ui/misc";
 import { cn, formatBytes, timeAgo } from "@/lib/utils";
-import type { Investigation, InvestigationStatus } from "@/data/types";
-import type { Severity } from "@/components/ui/badge";
 
 const tabs = [
   { label: "Static", to: "static", icon: FileSearch },
@@ -50,6 +48,16 @@ export function InvestigationLayout() {
   });
   const inv = liveInv ?? mockInv;
 
+  const updateMut = useMutation({
+    mutationFn: (body: Record<string, unknown>) => api.updateInvestigation(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investigation", id] });
+      queryClient.invalidateQueries({ queryKey: ["investigations"] });
+      setPatch({});
+      setShowClosure(false);
+    },
+  });
+
   if (!inv) {
     return (
       <div className="grid place-items-center py-24 text-center">
@@ -65,16 +73,6 @@ export function InvestigationLayout() {
   const meta = statusMeta[inv.status];
   const isClosed = inv.status === "closed";
   const isCompleted = inv.status === "completed";
-
-  const updateMut = useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.updateInvestigation(inv.id, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["investigation", id] });
-      queryClient.invalidateQueries({ queryKey: ["investigations"] });
-      setPatch({});
-      setShowClosure(false);
-    },
-  });
 
   const setField = (key: string, value: unknown) =>
     setPatch((p) => ({ ...p, [key]: value }));

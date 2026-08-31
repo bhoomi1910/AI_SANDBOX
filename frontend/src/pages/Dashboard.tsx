@@ -1,8 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ShieldAlert, Radar, Timer, FlaskConical, ArrowUpRight, Cpu, Server, ChevronRight, Globe, FileCode, Hash, Target } from "lucide-react";
+import { ShieldAlert, Radar, Timer, FlaskConical, Cpu, Server, ChevronRight, Globe, FileCode, Hash, Target } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatTile } from "@/components/shared/StatTile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -449,7 +448,7 @@ export default function Dashboard() {
               <p className="py-8 text-center text-sm text-muted-foreground">No YARA matches yet.</p>
             ) : (
               <div className="space-y-2">
-                {yaraStats.top_rules.map((rule, i) => {
+                {yaraStats.top_rules.map((rule) => {
                   const maxVal = yaraStats.top_rules[0]?.count || 1;
                   const pct = (rule.count / maxVal) * 100;
                   return (
@@ -491,7 +490,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  {mitreStats.top_techniques.slice(0, 5).map((t, i) => (
+                  {mitreStats.top_techniques.slice(0, 5).map((t) => (
                     <div key={t.technique} className="flex items-center justify-between text-xs">
                       <span className="flex items-center gap-1.5 text-muted-foreground">
                         <Hash className="size-3" />

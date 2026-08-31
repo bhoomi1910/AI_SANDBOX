@@ -36,7 +36,10 @@ export default function Queue() {
     enabled: USE_BACKEND,
   });
   const usingDemo = !USE_BACKEND || isError;
-  const items = usingDemo ? investigations : (data ?? []);
+  const items = useMemo(
+    () => (usingDemo ? investigations : (data ?? [])),
+    [usingDemo, data],
+  );
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: items.length };
