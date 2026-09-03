@@ -79,3 +79,12 @@ def test_dedicated_endpoints_serve_stored_data(client):
 
     ti = client.get(f"/api/investigations/{inv_id}/threat-intel").json()
     assert ti["iocs"], "threat-intel must carry the extracted IOCs"
+
+    dynamic = client.get(f"/api/investigations/{inv_id}/dynamic").json()
+    assert dynamic["status"] in ("completed", "unavailable")
+    assert isinstance(dynamic.get("result"), dict)
+
+    trace = client.get(f"/api/investigations/{inv_id}/trace").json()
+    assert trace["status"] == "completed"
+    assert trace["trace"]["trace_id"].startswith("trace-")
+    assert trace["trace"]["evidence_count"] >= 0

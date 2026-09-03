@@ -49,6 +49,9 @@ export interface Investigation {
   tags: string[];
   mitreTechniques: string[]; // technique IDs
   currentStage?: string;
+  dynamicStatus?: "pending" | "running" | "completed" | "failed" | "unavailable";
+  quarantineState?: "quarantined" | "released";
+  evidenceTraceId?: string;
 }
 
 export interface StaticAnalysis {

@@ -45,6 +45,9 @@ class Investigation(Base):
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     current_stage: Mapped[str] = mapped_column(String(255), default="Waiting for analysis")
+    dynamic_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    quarantine_state: Mapped[str] = mapped_column(String(20), default="quarantined")
+    evidence_trace_id: Mapped[str] = mapped_column(String(64), default="")
 
     severity: Mapped[str] = mapped_column(String(16), default="info")
     risk_score: Mapped[int] = mapped_column(Integer, default=0)
@@ -105,6 +108,9 @@ class Investigation(Base):
             "tags": _load_json_list(self.tags),
             "mitreTechniques": _load_json_list(self.mitre_techniques),
             "currentStage": self.current_stage,
+            "dynamicStatus": self.dynamic_status,
+            "quarantineState": self.quarantine_state,
+            "evidenceTraceId": self.evidence_trace_id or None,
         }
 
 

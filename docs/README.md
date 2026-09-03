@@ -272,6 +272,7 @@ Detailed documentation is available inside the **docs** directory.
 | SECURITY_MODULES.md | Security analysis modules |
 | DEPLOYMENT.md | Installation and deployment |
 | CHANGELOG.md | Development history |
+| IMPLEMENTATION_SCOPE.md | Project scope, success criteria, and security boundaries |
 
 ---
 

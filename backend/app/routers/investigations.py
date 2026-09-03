@@ -171,6 +171,49 @@ def graph(inv_id: str, db: Session = Depends(get_db)):
             "graph": payload.get("graph", {"nodes": [], "edges": []})}
 
 
+@router.get("/{inv_id}/dynamic")
+def dynamic(inv_id: str, db: Session = Depends(get_db)):
+    """Dynamic sandbox status/telemetry (isolated worker; optional)."""
+    inv = _require(db, inv_id)
+    payload = _load_result(db, inv_id)
+    if payload is None:
+        return _pending("Static analysis has not completed for this investigation yet")
+    dynamic_data = payload.get("dynamic")
+    if not isinstance(dynamic_data, dict):
+        return {
+            "status": "pending",
+            "investigation": inv.case_id,
+            "detail": "Dynamic sandbox data is not available yet.",
+        }
+    return {
+        "status": dynamic_data.get("status", "pending"),
+        "investigation": inv.case_id,
+        "result": dynamic_data,
+    }
+
+
+@router.get("/{inv_id}/trace")
+def evidence_trace(inv_id: str, db: Session = Depends(get_db)):
+    """Evidence-traceability payload for audit/report correlation."""
+    inv = _require(db, inv_id)
+    payload = _load_result(db, inv_id)
+    if payload is None:
+        return _pending("Static analysis has not completed for this investigation yet")
+    return {
+        "status": "completed",
+        "trace": {
+            "trace_id": inv.evidence_trace_id or f"trace-{inv.sha256[:16]}",
+            "investigation_id": inv.id,
+            "case_id": inv.case_id,
+            "hashes": {"sha256": inv.sha256, "md5": inv.md5, "sha1": inv.sha1},
+            "audit_trail": payload.get("audit_trail", []),
+            "evidence_count": len(payload.get("evidence", [])),
+            "ioc_count": len(payload.get("iocs", [])),
+            "mitre_count": len(payload.get("mitre", [])),
+        },
+    }
+
+
 @router.get("/{inv_id}/threat-intel")
 def threat_intel(inv_id: str, db: Session = Depends(get_db)):
     inv = _require(db, inv_id)
