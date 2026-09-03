@@ -29,6 +29,7 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     settings.upload_dir_path.mkdir(parents=True, exist_ok=True)
+    settings.quarantine_dir_path.mkdir(parents=True, exist_ok=True)
     settings.report_dir_path.mkdir(parents=True, exist_ok=True)
 
 

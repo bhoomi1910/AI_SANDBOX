@@ -8,6 +8,8 @@ Interactive API docs:
     http://localhost:8000/docs
 """
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -54,6 +56,8 @@ app.add_middleware(
 # --- Security headers ---------------------------------------------------
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    started = time.perf_counter()
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -61,6 +65,16 @@ async def security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     if settings.environment == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Request-ID"] = request_id
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+    logger.info(
+        "audit request_id=%s method=%s path=%s status=%s duration_ms=%s",
+        request_id,
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+    )
     return response
 
 

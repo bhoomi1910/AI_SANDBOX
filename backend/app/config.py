@@ -35,7 +35,13 @@ class Settings(BaseSettings):
     # File handling
     max_upload_size: int = 100 * 1024 * 1024  # 100 MiB
     upload_dir: str = str(BACKEND_DIR.parent / "uploads")
+    quarantine_dir: str = str(BACKEND_DIR.parent / "quarantine")
     report_dir: str = str(BACKEND_DIR.parent / "reports")
+
+    # Dynamic sandbox controls (disabled by default in this static-safe prototype).
+    dynamic_sandbox_enabled: bool = False
+    dynamic_timeout_seconds: int = 180
+    dynamic_max_memory_mb: int = 512
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
@@ -51,6 +57,10 @@ class Settings(BaseSettings):
     @property
     def report_dir_path(self) -> Path:
         return Path(self.report_dir)
+
+    @property
+    def quarantine_dir_path(self) -> Path:
+        return Path(self.quarantine_dir)
 
     @property
     def ai_provider_label(self) -> str:

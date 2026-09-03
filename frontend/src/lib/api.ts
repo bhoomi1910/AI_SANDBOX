@@ -88,6 +88,16 @@ export const api = {
       `/investigations/${id}/graph`
     ),
 
+  getDynamicAnalysis: (id: string) =>
+    request<{ status: string; result?: Record<string, unknown>; detail?: string }>(
+      `/investigations/${id}/dynamic`
+    ),
+
+  getEvidenceTrace: (id: string) =>
+    request<{ status: string; trace?: Record<string, unknown> }>(
+      `/investigations/${id}/trace`
+    ),
+
   getAiAnalysis: (id: string) =>
     request<Record<string, unknown>>(`/investigations/${id}/ai`),
 

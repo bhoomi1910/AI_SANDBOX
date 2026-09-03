@@ -27,6 +27,8 @@ export default function Queue() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InvestigationStatus | "all">("all");
+  const [severityFilter, setSeverityFilter] = useState<"all" | "critical" | "high" | "medium" | "low" | "info" | "clean">("all");
+  const [verdictFilter, setVerdictFilter] = useState<"all" | "malicious" | "suspicious" | "clean">("all");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["investigations"],
@@ -51,6 +53,12 @@ export default function Queue() {
     return items
       .filter((i) => (filter === "all" ? true : i.status === filter))
       .filter((i) =>
+        severityFilter === "all" ? true : i.severity === severityFilter
+      )
+      .filter((i) =>
+        verdictFilter === "all" ? true : i.verdict === verdictFilter
+      )
+      .filter((i) =>
         query
           ? [i.caseId, i.sample.filename, i.malwareFamily, i.sample.sha256]
               .join(" ")
@@ -59,7 +67,7 @@ export default function Queue() {
           : true
       )
       .sort((a, b) => severityRank[b.severity] - severityRank[a.severity]);
-  }, [items, query, filter]);
+  }, [items, query, filter, severityFilter, verdictFilter]);
 
   return (
     <div>
@@ -98,6 +106,29 @@ export default function Queue() {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value as typeof severityFilter)}
+            className="h-9 rounded-md border border-border bg-surface/50 px-2 text-xs text-foreground"
+          >
+            <option value="all">All severity</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+            <option value="info">Info</option>
+            <option value="clean">Clean</option>
+          </select>
+          <select
+            value={verdictFilter}
+            onChange={(e) => setVerdictFilter(e.target.value as typeof verdictFilter)}
+            className="h-9 rounded-md border border-border bg-surface/50 px-2 text-xs text-foreground"
+          >
+            <option value="all">All verdicts</option>
+            <option value="malicious">Malicious</option>
+            <option value="suspicious">Suspicious</option>
+            <option value="clean">Clean</option>
+          </select>
           <div className="relative w-full lg:w-72">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search cases, files, hashes…" className="pl-9" />

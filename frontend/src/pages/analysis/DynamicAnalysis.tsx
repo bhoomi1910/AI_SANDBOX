@@ -80,6 +80,17 @@ export default function DynamicAnalysis() {
     retry: 1,
   });
 
+  const dynamicQ = useQuery({
+    queryKey: ["dynamic", inv.id],
+    queryFn: () => api.getDynamicAnalysis(inv.id),
+    enabled: USE_BACKEND && inv.status === "completed",
+    retry: 1,
+    refetchInterval: (query) =>
+      query.state.data?.status === "completed" || query.state.data?.status === "unavailable"
+        ? false
+        : 3000,
+  });
+
   const allEvidence =
     (staticQ.data?.result?.evidence as LiveEvidence[] | undefined) ?? [];
   const allIocs = (iocQ.data?.iocs as LiveIoc[] | undefined) ?? [];
@@ -111,6 +122,7 @@ export default function DynamicAnalysis() {
 
   const useLive = USE_BACKEND && inv.status === "completed";
   const isPending = USE_BACKEND && inv.status !== "completed";
+  const dynamicStatus = dynamicQ.data?.status ?? inv.dynamicStatus ?? "pending";
 
   // Mock timeline fallback
   const displayTimeline = useLive
@@ -135,17 +147,17 @@ export default function DynamicAnalysis() {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-4"
     >
-      {/* Static-only notice */}
+      {/* Dynamic sandbox notice */}
       <Card className="border-medium/20 bg-medium/5">
         <CardContent className="flex items-start gap-3 pt-5">
           <Info className="mt-0.5 size-4 shrink-0 text-medium" />
           <div>
             <p className="text-sm text-muted-foreground">
-              This platform performs <span className="font-medium text-foreground">static analysis only</span> — the
-              sample is never detonated in a VM. The timeline below is{" "}
-              <span className="font-medium text-foreground">inferred from file structure</span> — PE
-              imports, control-flow patterns, registry paths, and embedded
-              strings — rather than from observed runtime behaviour.
+              Dynamic sandbox status:{" "}
+              <span className="font-medium text-foreground">{dynamicStatus}</span>.
+              {dynamicStatus === "unavailable"
+                ? " Runtime detonation is disabled in this environment; timeline is inferred from deterministic static evidence."
+                : " Runtime telemetry is shown when available; deterministic evidence remains the source of truth."}
             </p>
           </div>
         </CardContent>

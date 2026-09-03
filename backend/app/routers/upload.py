@@ -49,6 +49,9 @@ def upload_sample(file: UploadFile, db: Session = Depends(get_db)):
         status="queued",
         progress=0,
         current_stage="Queued for analysis",
+        dynamic_status="pending",
+        quarantine_state="quarantined",
+        evidence_trace_id=f"trace-{stored['sha256'][:16]}",
         uploaded_at=utcnow(),
     )
     db.add(inv)

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import AnalysisResult, Investigation, utcnow
 from app.services import detection as detection_mod
+from app.services.dynamic import start_dynamic_analysis
 from app.services.analysis import entropy as entropy_mod
 from app.services.analysis import filetype as ft_mod
 from app.services.analysis import office as office_mod
@@ -163,6 +164,15 @@ def run_static_analysis(inv_id: str) -> None:
             "total_engines": total_engines,
             "mitre_techniques": mitre,
             "note": "Static analysis only — the sample was never executed.",
+            "audit_trail": [
+                {
+                    "timestamp": utcnow().isoformat(),
+                    "stage": "static",
+                    "event": "completed",
+                    "detail": "Deterministic static analysis completed.",
+                    "trace_id": inv.evidence_trace_id or f"trace-{inv.sha256[:16]}",
+                }
+            ],
         }
 
         _update(
@@ -177,6 +187,7 @@ def run_static_analysis(inv_id: str) -> None:
         )
         db.add(AnalysisResult(investigation_id=inv.id, file_sha256=inv.sha256, data=json.dumps(result_data)))
         db.commit()
+        start_dynamic_analysis(inv.id)
         logger.info("Static analysis complete for %s (%s, score %s)", inv.case_id, score["verdict"], score["total"])
     except Exception as exc:  # noqa: BLE001
         db.rollback()

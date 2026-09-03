@@ -81,4 +81,6 @@ def test_deepdive_endpoints_return_pending(client):
     assert client.get(f"/api/investigations/{inv_id}/static").status_code == 200
     assert client.get(f"/api/investigations/{inv_id}/threat-intel").status_code == 200
     assert client.get(f"/api/investigations/{inv_id}/mitre").status_code == 200
+    assert client.get(f"/api/investigations/{inv_id}/dynamic").status_code == 200
+    assert client.get(f"/api/investigations/{inv_id}/trace").status_code == 200
     assert client.get(f"/api/investigations/{inv_id}/ai").status_code == 200

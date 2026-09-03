@@ -144,6 +144,8 @@ All routes are prefixed with `/api`.
 | `GET` | `/investigations/{id}/iocs` | Deduplicated indicators of compromise |
 | `GET` | `/investigations/{id}/mitre` | Evidence-backed MITRE ATT&CK mappings |
 | `GET` | `/investigations/{id}/graph` | Provenance graph (file → evidence → IOC/finding → technique) |
+| `GET` | `/investigations/{id}/dynamic` | Dynamic sandbox telemetry/status (isolated worker, optional) |
+| `GET` | `/investigations/{id}/trace` | Evidence traceability + audit trail metadata |
 | `GET` | `/investigations/{id}/threat-intel` | Stored IOCs (external feeds pending) |
 | `GET` | `/investigations/{id}/ai` | AI interpretation (`completed` / `unavailable` / `error`) |
 | `GET` | `/investigations/{id}/report/pdf` | Downloadable PDF investigation report |
@@ -189,7 +191,7 @@ AI SANDBOX/
 ## Known Limitations
 
 - **Dynamic / Network / Threat-Intel deep-dive pages** still render the mock prototype dataset;
-  this platform is static-analysis-only and never executes samples.
+  dynamic execution is optional and disabled by default in this static-safe profile.
 - **Threat-intel feeds** (`/threat-intel`) return stored IOCs; external enrichment is pending.
 - **Authentication** is a demo gate — any credentials pass; there is no real identity provider.
 - **AI** requires a local Ollama; without it the AI sections show a labelled "unavailable" state.
