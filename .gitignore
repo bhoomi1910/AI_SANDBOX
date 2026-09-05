@@ -15,6 +15,12 @@ venv/
 *.sqlite
 *.sqlite3
 
+# Database backups (never commit a dev backup)
+*.db.bak
+*.db.bak-*
+*.sqlite.bak
+*.sqlite.bak-*
+
 # Env
 .env
 .env.local
