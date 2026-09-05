@@ -1,7 +1,12 @@
 # ═══════════════════════════════════════════════════════════════════════════
-#  Aegis Sandbox AI — full-stack development topology
+#  Aegis Sandbox AI — full-stack topology (docker compose)
 #
-#  Usage:  docker compose up --build
+#  Prerequisites:
+#    Create a root .env file with a Postgres password, e.g.:
+#      POSTGRES_PASSWORD=change-me
+#    (Never commit a real password. POSTGRES_PASSWORD is required.)
+#
+#  Usage:  docker compose --env-file .env up --build
 #  Frontend:  http://localhost:8080
 #  Backend :  http://localhost:8000/docs
 # ═══════════════════════════════════════════════════════════════════════════
@@ -11,28 +16,15 @@ services:
     image: postgres:16-alpine
     container_name: aegis-db
     environment:
-      POSTGRES_USER: aegis
-      POSTGRES_PASSWORD: aegis
-      POSTGRES_DB: aegis
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-aegis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in the root .env file}
+      POSTGRES_DB: ${POSTGRES_DB:-aegis}
     volumes:
       - aegis-pgdata:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # No host port binding — the DB is only reachable from inside the network.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aegis"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Redis (Celery broker / cache) ─────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: aegis-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aegis}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -43,16 +35,15 @@ services:
     container_name: aegis-backend
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+psycopg2://aegis:aegis@db:5432/aegis
-      REDIS_URL: redis://redis:6379/0
-      USE_REAL_LLM: "false"
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-aegis}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-aegis}
       CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+      LOG_LEVEL: INFO
+      UPLOAD_RATE_LIMIT: ${UPLOAD_RATE_LIMIT:-30}
+      UPLOAD_RATE_WINDOW_SECONDS: ${UPLOAD_RATE_WINDOW_SECONDS:-60}
     ports:
       - "8000:8000"
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   # ── React frontend (nginx) ────────────────────────────────────────────────

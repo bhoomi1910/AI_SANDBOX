@@ -1,139 +1,145 @@
 # Production Readiness
 
-## Overview
+> Last updated: **2026-09-06** · Applies to the current `main` branch (commits
+> `60ff096`, `16d2aaf` + today's uncommitted backlog). Every item is marked
+> **VERIFIED** (exercised on this machine) or **NOT VERIFIED** (configured/documented
+> only — do not claim as tested).
 
-This document covers the production readiness measures implemented for the Aegis Sandbox AI platform, including configuration management, reliability improvements, monitoring, and deployment preparation.
+## 1. Configuration Management
 
-## Configuration Management
-
-### Backend (`app/config.py`)
-All settings are environment-variable driven with sensible defaults:
+### Backend (`backend/app/config.py`)
+All settings are environment-variable driven with safe defaults:
 
 | Variable | Default | Description |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./sandbox.db` | Database connection string |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama LLM endpoint |
-| `AI_MODEL` | `llama3.1:latest` | Model to use for analysis |
-| `AI_TIMEOUT_SECONDS` | `120` | Timeout for AI inference |
-| `AI_PROBE_TIMEOUT_SECONDS` | `30` | Timeout for AI availability check |
-| `MAX_UPLOAD_SIZE` | `104857600` (100 MB) | Maximum upload file size |
-| `UPLOAD_DIR` | `./uploads` | Upload storage directory |
-| `REPORT_DIR` | `./reports` | Generated reports directory |
-| `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
-| `ENVIRONMENT` | `development` | Environment mode (development/production) |
+| `ENVIRONMENT` | `development` | `development` / `test` / `production` (production disables `/docs`, enables HSTS) |
+| `LOG_LEVEL` | `INFO` | Root log level for the structured formatter |
+| `DATABASE_URL` | `sqlite:///<backend>/aegis.db` | SQLite default; `postgresql+psycopg2://` supported |
+| `OLLAMA_URL` | `http://localhost:11434` | Local Ollama only — no cloud inference |
+| `AI_MODEL` | `` (empty) | Auto-discover first installed free model |
+| `AI_TIMEOUT_SECONDS` | `120` | AI inference timeout |
+| `AI_PROBE_TIMEOUT_SECONDS` | `3` | AI availability probe timeout |
+| `MAX_UPLOAD_SIZE` | `104857600` (100 MiB) | Enforced while streaming (413) |
+| `UPLOAD_DIR` | `<root>/uploads` | Stored under random UUID names |
+| `REPORT_DIR` | `<root>/reports` | Generated PDF reports |
+| `UPLOAD_RATE_LIMIT` | `30` | Uploads allowed per window per IP |
+| `UPLOAD_RATE_WINDOW_SECONDS` | `60` | Rate-limit window |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated allowed origins |
+
+**VERIFIED:** every setting is exercised by dev runs and/or tests.
+**NOT VERIFIED:** a non-development `ENVIRONMENT`, and non-SQLite `DATABASE_URL`.
 
 ### Frontend (`frontend/.env`)
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_USE_BACKEND` | `true` | Use live backend vs mock data |
+| `VITE_USE_BACKEND` | `true` | Live backend via `/api` proxy vs built-in mock fallback |
+| `VITE_API_BASE_URL` | `/api` | API base path |
 
-## Reliability Improvements
+**VERIFIED:** both live values run in development.
 
-### Dashboard OOM Prevention
-The dashboard endpoint (`routers/dashboard.py`) previously loaded all analysis results and MITRE data into memory. Fixed with:
-- **SQL aggregation** for malware family statistics (replaces Python-side counting)
-- **LIMIT 500** on `AnalysisResult` queries
-- **LIMIT 500** on MITRE technique queries
-- Prevents out-of-memory crashes on large datasets
+## 2. Structured Logging & Request Correlation
 
-### Health Endpoint (`/api/health`)
-- Reports status of API, static analysis engine, and AI engine
-- AI check uses `is_ai_available()` for quick reachability test
-- No longer exposes database URL, file paths, or internal configuration
-- Suitable for load balancer health checks
+Implemented in `backend/app/logging_config.py` + middleware in `app/main.py`:
 
-### Error Recovery
-- Global exception handler in `main.py` returns sanitized error responses
-- React `ErrorBoundary` catches frontend render errors with recovery UI
-- AI service gracefully handles Ollama downtime with user-friendly messages
+- Every response carries `X-Request-ID` (client-supplied only if ≤ 64 chars of
+  `[alnum . _ -]`, otherwise a fresh `uuid4().hex`).
+- Access log: `request METHOD path -> status (ms)`; analysis logs include
+  `investigation_id` / `analyzer`; all lines are `key=value` via `SafeFormatter`.
+- Error responses (500 / HTTP errors / 422) include `request_id` for support
+  correlation while preserving the `detail` payload shape.
+- No secrets, query strings, storage paths or file contents are ever logged.
 
-## Deployment
+**VERIFIED:** unit tests, endpoint tests, and live curl checks (auto-generated ID,
+honored client ID, 404/422 bodies, access-log capture). **NOT VERIFIED:** nothing
+(fully covered).
 
-### Docker Compose
-```yaml
-# docker-compose.yml (development)
-services:
-  backend:
-    build: ./backend
-    ports: ["8000:8000"]
-    environment:
-      DATABASE_URL: postgresql://postgres:aegis@db:5432/aegis
-      ENVIRONMENT: development
-    depends_on: [db]
+## 3. Upload Rate Limiting
 
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: aegis
-      POSTGRES_PASSWORD: aegis
-    volumes: [pgdata:/var/lib/postgresql/data]
+`backend/app/services/ratelimit.py`: thread-safe fixed-window `InMemoryRateLimiter`,
+keyed by client IP on `POST /api/samples/upload` (default 30/min/IP), `429` with
+`Retry-After` header, **fail-safe** (a limiter fault allows the request and logs).
 
-  frontend:
-    build: ./frontend
-    ports: ["3000:80"]
+- **VERIFIED:** limiter unit tests (window rollover, per-key isolation) + endpoint
+  test (2 allowed → 429 with `Retry-After` and correlated `request_id`).
+- **NOT VERIFIED / single-instance scope:** in-memory — a horizontally scaled
+  deployment must replace it with a shared store (Redis etc.).
 
-volumes:
-  pgdata:
-```
+## 4. Database Compatibility
 
-### Backend Dockerfile
-- Based on `python:3.14-slim`
-- Runs as non-root `aegis` user (UID 1001)
-- Exposes port 8000
-- Installs only production dependencies
+- SQLite default (zero-config) — **VERIFIED** by full test suite + live runs.
+- PostgreSQL supported via `psycopg2-binary` in `backend/requirements.txt`;
+  `pool_pre_ping=True` on the SQLAlchemy engine; compose mounts
+  `database/init.sql`. **NOT VERIFIED live**: no Postgres server / `psql` on this
+  machine — URL/driver path is configuration-tested only.
+- Schema migration (Alembic) intentionally deferred. Dev note: a stale SQLite file
+  predating new columns must be deleted to recreate the table (see README).
 
-### Frontend (nginx)
-- Serves built static files
-- Security headers configured
-- Hidden file access blocked (`.env`, `.git`, `.htaccess`)
-- API requests proxied to backend
+## 5. Docker & Deployment Scaffold
 
-## Monitoring
+- `backend/Dockerfile`: `python:3.12-slim`, non-root `aegis` (UID 1001), prod-only
+  deps. `frontend/Dockerfile` + `nginx.conf`: security headers, hidden-file
+  blocking, `/api` proxied to `backend:8000`.
+- `docker-compose.yml`: PostgreSQL (no host port binding, `pg_isready` healthcheck,
+  volume `aegis-pgdata`), backend, frontend. Credentials come from a root `.env`
+  (`POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?...}` — **no hardcoded password**).
+  Unused Redis service and stale `USE_REAL_LLM` flag removed.
+- **NOT VERIFIED live:** Docker is not installed on this machine. Status —
+  "Docker verification pending because Docker is unavailable on the development
+  machine." The images/compose are hardened and lint-checked, but a real build/run
+  has not been executed here.
 
-### Health Check
-```bash
-curl http://localhost:8000/api/health
-```
-Response includes:
-- `status`: "healthy" or "degraded"
-- `components.api`, `components.static_analysis`, `components.ai_engine`: "ok" or "unavailable"
-- `ai_available`: boolean
-- `timestamp`: ISO timestamp
+## 6. Monitoring & Health
 
-### Structured Logging
-- Python `logging` module used throughout backend
-- Log level configurable via `LOG_LEVEL` environment variable
-- Request IDs not yet implemented (future enhancement)
+- `GET /api/health` returns operational status + component states
+  (`api`, `static_analysis`, `ai_engine`); exposes **no** internals.
+  **VERIFIED** live (`status: operational`, `ai_engine: unavailable` without Ollama).
 
-## Production Checklist
+## 7. Production Checklist — Final Verification
 
 ### Pre-deployment
-- [ ] Set `ENVIRONMENT=production` to disable `/docs` and enable HSTS
-- [ ] Configure `CORS_ORIGINS` to specific domain(s) instead of `*`
-- [ ] Set secure database credentials (not `aegis`)
-- [ ] Ensure Ollama is running and accessible at configured `OLLAMA_URL`
-- [ ] Set appropriate `MAX_UPLOAD_SIZE` for your use case
+- [x] `ENVIRONMENT=production` disables `/docs` + `/redoc` and enables HSTS — **VERIFIED in code; HSTS NOT observed live (dev env)**
+- [x] `CORS_ORIGINS` restricted to specific origins (wildcard never enabled with credentials) — **VERIFIED**
+- [x] Security headers on every response (`nosniff`, `DENY`, `Referrer-Policy`, `X-XSS-Protection`) — **VERIFIED live**
+- [x] Upload rate limiting active (429 + `Retry-After`) — **VERIFIED by tests; default 30/min/IP**
+- [x] No hardcoded credentials in compose; `.env` files documented — **VERIFIED (compose now `${POSTGRES_PASSWORD}`)**
+- [x] Global + HTTP + validation error handlers return `request_id`, no internals — **VERIFIED live**
+- [ ] Set a real Postgres password and run against PostgreSQL — **NOT VERIFIED (no Postgres available)**
+- [ ] Build and run the Docker stack — **NOT VERIFIED (Docker unavailable)**
+- [ ] Run with Ollama installed and a free model pulled — **NOT VERIFIED (Ollama unavailable; graceful fallback verified)**
 
-### Post-deployment
-- [ ] Verify health endpoint returns `"status": "healthy"`
-- [ ] Test file upload and analysis pipeline end-to-end
-- [ ] Verify CORS headers on responses
-- [ ] Check that `/docs` returns 404 in production mode
-- [ ] Monitor disk usage for `uploads/` and `reports/` directories
+### Post-deployment (as verified on this machine)
+- [x] `GET /api/health` → `200 status=operational` — **VERIFIED live**
+- [x] Upload → analysis pipeline completes (147-test suite) — **VERIFIED**
+- [x] CORS + security headers present on live responses — **VERIFIED live**
+- [x] `/docs` reachable in development only — **VERIFIED (200 in dev; disabled by `ENVIRONMENT=production`)**
+- [x] ESLint (`--max-warnings 0`), `tsc --noEmit`, `vite build` all green — **VERIFIED**
+- [x] Frontend live through the Vite `/api` proxy — **VERIFIED live**
 
-## Test Suite
+## 8. Test Suite
 
-**128 tests** covering:
-- AI service, providers, prompts, validation (26 tests)
-- Dashboard endpoint structure and data (20 tests)
-- Detection engine and MITRE mapping (10 tests)
-- IOC extraction and validation (10 tests)
-- Scoring engine (9 tests)
-- Report generation and API (14 tests)
-- Health endpoint (5 tests)
-- Upload pipeline (7 tests)
-- Failure isolation (4 tests)
-- Adversarial security tests (16 tests)
-- API integration tests (7 tests)
+**147 tests, all passing** (`cd backend && python -m pytest -q`):
 
-Run: `cd backend && python -m pytest tests/ -v`
+- AI service, providers, prompts, validation (26)
+- Dashboard endpoint structure and data (20)
+- Detection engine and MITRE mapping (10)
+- IOC extraction and validation (10)
+- Scoring engine (9)
+- Report generation and API (14)
+- Health endpoint (5)
+- Upload pipeline (7)
+- Failure isolation (4)
+- Adversarial security tests (16)
+- API integration tests (7)
+- Request-ID / structured logging (11)
+- Rate limiting (8)
+
+**Frontend:** `npm run lint` · `npm run build` (includes `tsc --noEmit`) — clean.
+
+## 9. Known Environment Gaps
+
+| Capability | Status |
+|---|---|
+| PostgreSQL | NOT VERIFIED (no server/`psql` on dev machine) |
+| Docker / Docker Compose | NOT VERIFIED (Docker unavailable) |
+| Ollama / AI inference | NOT VERIFIED (unavailable; deterministic fallback + clear UI state verified) |
+| Horizontal scaling / distributed rate limiting | Out of scope (in-memory limiter, single instance) |

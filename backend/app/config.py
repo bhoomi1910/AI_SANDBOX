@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     app_name: str = "AI-Powered Intelligent Sandbox"
     api_version: str = "v1"
     environment: str = "development"
+    log_level: str = "INFO"
 
     # Database — SQLite by default so the prototype runs with zero external
     # services. Point at PostgreSQL in production.
@@ -36,6 +37,10 @@ class Settings(BaseSettings):
     max_upload_size: int = 100 * 1024 * 1024  # 100 MiB
     upload_dir: str = str(BACKEND_DIR.parent / "uploads")
     report_dir: str = str(BACKEND_DIR.parent / "reports")
+
+    # Upload rate limiting (in-memory, per client IP — single instance only)
+    upload_rate_limit: int = 30
+    upload_rate_window_seconds: int = 60
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

@@ -8,6 +8,7 @@ python-multipart==0.0.32
 
 # Persistence (SQLite by default; PostgreSQL later via DATABASE_URL)
 SQLAlchemy==2.0.51
+psycopg2-binary==2.9.10  # PostgreSQL driver (unused while DATABASE_URL is SQLite)
 
 # PDF report generation (Phase 7)
 reportlab==5.0.0

@@ -343,41 +343,36 @@ ollama list
 
 # Docker Deployment
 
-Build project
+The full stack (`db` PostgreSQL + `backend` + `frontend` nginx) is scaffolded in
+the root `docker-compose.yml`. No Redis service is included — it is not required
+by the current single-instance architecture.
+
+Create a root `.env` with a strong database password (never commit a real one):
 
 ```bash
-docker-compose build
+POSTGRES_PASSWORD=strong-password-change-me
 ```
 
----
-
-Run project
+Start the stack (compose resolves `${POSTGRES_PASSWORD}` into the backend URL):
 
 ```bash
-docker-compose up
+docker compose --env-file .env up --build -d
 ```
 
-Detached mode
+Frontend: http://localhost:8080 · Backend: http://localhost:8000/docs
+
+Manage:
 
 ```bash
-docker-compose up -d
+docker compose down          # stop containers
+docker compose up --build    # rebuild + run (foreground)
 ```
 
----
-
-Stop containers
-
-```bash
-docker-compose down
-```
-
----
-
-Rebuild
-
-```bash
-docker-compose up --build
-```
+**Verification status:** the Docker images and compose file are hardened
+(non-root `aegis` user, nginx security headers, no hardcoded credentials,
+healthchecks), but **Docker is not installed on this development machine, so the
+compose stack has not been executed/verified here.** Do not claim a live Docker
+run until it has been exercised on a Docker-capable host.
 
 ---
 
@@ -389,25 +384,49 @@ Create
 .env
 ```
 
-Example
+from `backend/.env.example`:
 
 ```text
-APP_NAME=AI Sandbox
-
-DEBUG=True
-
-DATABASE_URL=sqlite:///database.db
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+DATABASE_URL=sqlite:///./aegis.db
 
 OLLAMA_URL=http://localhost:11434
-
-OLLAMA_MODEL=qwen3
-
-UPLOAD_DIRECTORY=uploads
-
-REPORT_DIRECTORY=reports
+AI_MODEL=
+AI_TIMEOUT_SECONDS=120
+AI_PROBE_TIMEOUT_SECONDS=3
 
 MAX_UPLOAD_SIZE=104857600
+# UPLOAD_DIR=../uploads
+# REPORT_DIR=../reports
+
+UPLOAD_RATE_LIMIT=30
+UPLOAD_RATE_WINDOW_SECONDS=60
+
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
+
+All settings are env-driven with safe defaults; see [`backend/.env.example`](../backend/.env.example).
+
+## PostgreSQL (production)
+
+The application is PostgreSQL-ready via `psycopg2` (included in
+`backend/requirements.txt`). Switch by changing `DATABASE_URL`:
+
+```text
+DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/dbname
+```
+
+Developer notes:
+
+- `app/database.py` uses `pool_pre_ping=True` so stale pooled connections are
+  detected and re-established automatically.
+- Schema migration (Alembic) is intentionally not included yet. On SQLite,
+  delete the stale dev file to apply a new schema; PostgreSQL setups should
+  create the schema from `database/init.sql` in a fresh database.
+- **Verified:** SQLite fully exercised by tests and live runs. **Not verified on
+  this machine:** PostgreSQL — no server/`psql` is installed here, so the
+  Postgres path is configuration-tested only.
 
 ---
 
@@ -642,8 +661,7 @@ The deployment follows several security practices:
 
 Future production deployments may include:
 
-- PostgreSQL database
-- Nginx reverse proxy
+- Schema migrations (Alembic) for PostgreSQL
 - HTTPS with TLS
 - User authentication
 - Role-Based Access Control (RBAC)
@@ -721,11 +739,12 @@ View Dashboard
 | React Frontend | ✅ Supported |
 | FastAPI Backend | ✅ Supported |
 | SQLite Database | ✅ Supported |
-| Docker | ✅ Supported |
-| Docker Compose | ✅ Supported |
-| Ollama Integration | 🚧 In Progress |
-| PDF Reports | 🚧 Planned |
-| PostgreSQL | 📅 Future |
+| PostgreSQL | 🔄 Ready (driver + config; NOT verified live — no Postgres server on dev machine) |
+| Docker Compose | 🔄 Files hardened; NOT verified live — Docker not installed on dev machine |
+| Ollama Integration | 🚧 Not installed locally (graceful "unavailable" fallback verified) |
+| PDF Reports | ✅ Supported |
+| Structured Logging + Request IDs | ✅ Supported |
+| Upload Rate Limiting | ✅ Supported (per-instance in-memory) |
 | HTTPS Deployment | 📅 Future |
 | Kubernetes | 📅 Future |
 

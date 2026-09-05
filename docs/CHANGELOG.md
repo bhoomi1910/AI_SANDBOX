@@ -8,6 +8,99 @@ The project follows a version-based development approach, where each release int
 
 # Development Log (real history)
 
+## 2026-09-06 — Production Backlog: Logging, Rate Limiting, PostgreSQL, Docker
+
+### Added
+- **Structured logging + request IDs** (`backend/app/logging_config.py`, new):
+  - `request_id_var` context variable + `RequestIdFilter` so every logger in a
+    request emits `request_id=<id>`.
+  - `SafeFormatter` — stable `key=value` lines, tolerates records without the
+    optional fields (`request_id` / `investigation_id` / `analyzer` → `-`).
+  - `generate_request_id()` — honors a client `X-Request-ID` only when ≤ 64 chars
+    and `[alnum . _ -]`, otherwise a `uuid4().hex`.
+  - `setup_logging()` — idempotent root-level configuration, `LOG_LEVEL` env-driven.
+- **Request-ID middleware** (`backend/app/main.py`): assigns/generates the ID,
+  echoes `X-Request-ID` on every response, logs `request METHOD path -> status (ms)`.
+  All error responses (500 via global handler, HTTP errors, 422 validation) now
+  include `request_id` while preserving the `detail` payload shape.
+- **Upload rate limiting** (`backend/app/services/ratelimit.py`, new):
+  - `InMemoryRateLimiter` — thread-safe fixed-window counter, lazy eviction.
+  - `enforce_upload_rate_limit` dependency on `POST /samples/upload` (default
+    30/min per client IP), `429` with `Retry-After` header; **fail-safe**: a
+    limiter fault logs and allows the request.
+- **PostgreSQL readiness**: `psycopg2-binary` added to `backend/requirements.txt`;
+  `pool_pre_ping=True` in `backend/app/database.py`.
+- **Docker hardening**: `docker-compose.yml` now requires
+  `POSTGRES_PASSWORD=${...}` (no hardcoded credential), removed unused Redis
+  service and stale `USE_REAL_LLM` flag, aligned healthchecks and `LOG_LEVEL` /
+  rate-limit env passthrough.
+- **Config**: `log_level`, `upload_rate_limit`, `upload_rate_window_seconds`
+  settings (`backend/app/config.py`); `backend/.env.example` rewritten.
+- **Tests**: `tests/test_logging.py` (11) + `tests/test_rate_limit.py` (8) —
+  request-ID behavior (generate/honor/sanitize), error-body correlation,
+  formatter/filter units, limiter windowing, and live `429` via limiter swap.
+  **147 tests total, all passing.**
+
+### Fixed
+- Live dev SQLite database was stale (created before the closure-`resolution`
+  column existed) — backed up as `aegis.db.bak-20260906` and recreated.
+
+### Changed
+- `backend/app/services/analysis/__init__.py` analysis logs now carry
+  `investigation_id`/`analyzer` structured fields.
+- Docs: `README.md`, `docs/DEPLOYMENT.md`, `docs/PROJECT_STATUS.md`,
+  `PRODUCTION_READINESS.md` updated.
+
+### Security
+- Errors and logs never expose secrets, query strings, storage paths or file
+  contents; request IDs provide end-to-end correlation for support.
+- Upload flooding is bounded per IP by default; brute-forceable paths are gone
+  (default credential previously baked into compose).
+
+### Known issues / not verified
+- PostgreSQL and Docker **not verified live** (no Postgres server / Docker on the
+  dev machine) — configuration-tested only.
+- Ollama not installed; AI reports `unavailable` (graceful, verified).
+- Rate limiter is in-memory and single-instance; a distributed deployment needs
+  a shared store (Redis or similar).
+
+## 2026-08-31 — Frontend Quality Gate: ESLint
+
+### Added
+- ESLint flat config (`frontend/eslint.config.js`): `@eslint/js`,
+  `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-react-refresh`,
+  `globals` (all compatible with eslint ^10).
+- `npm run lint` → `eslint . --max-warnings 0`.
+
+### Fixed
+- 17 lint findings: unused imports across Dashboard/Queue/AiInvestigation/
+  DynamicAnalysis/NetworkAnalysis/Report/StaticAnalysis; a real React Hooks
+  violation (conditional `useMutation` after an early return in
+  `InvestigationLayout.tsx` — the mutation now runs unconditionally and targets
+  the URL `id`); unstable `items` deps in `Queue.tsx` memoized.
+
+### Known issues (not yet fixed)
+- PostgreSQL / Docker live verification pending.
+
+## 2026-08-20 — Security Hardening & Production Readiness
+
+### Added
+- CORS restricted to configured origins (no wildcard w/ credentials); security
+  headers middleware (`nosniff`, `DENY`, `Referrer-Policy`, `X-XSS-Protection`,
+  HSTS in production); `/docs` + `/redoc` disabled outside development.
+- Sanitized global error handler (no internals leaked); health endpoint no longer
+  exposes DB URL / paths; AI and prompt output sanitized; PATCH length limits.
+- 16 adversarial security tests (`tests/test_security.py`); backend Dockerfile
+  runs as non-root `aegis`; nginx security headers + hidden-file blocking.
+- `PRODUCTION_READINESS.md`, `SECURITY_HARDENING.md`, `.env.example` files.
+
+### Fixed
+- Dashboard OOM prevention (SQL aggregation, bounded LIMIT queries).
+- Test-isolation collision (`SEC-<8-hex>` case IDs instead of `INV-`).
+
+### Known issues (not yet fixed)
+- `npm run lint` (fixed 2026-08-31); PostgreSQL/Docker live verification pending.
+
 ## 2026-08-20 — Threat Intel UI Hardening + Case Closure
 
 ### Added

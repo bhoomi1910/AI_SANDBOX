@@ -8,14 +8,19 @@ Interactive API docs:
     http://localhost:8000/docs
 """
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
 from app.database import init_db
+from app.logging_config import generate_request_id, request_id_var, setup_logging
 from app.routers import dashboard, investigations, upload
 
 logger = logging.getLogger(__name__)
@@ -24,6 +29,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging(settings.log_level)
     logger.info("Starting %s (env=%s)", settings.app_name, settings.environment)
     init_db()
     yield
@@ -64,14 +70,71 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+# --- Request ID + structured access logging -------------------------------
+@app.middleware("http")
+async def request_id_and_access_logging(request: Request, call_next):
+    """Assign a request ID, return it in the response, and log the request.
+
+    A client-supplied ``X-Request-ID`` is honored only if it is short and
+    made of safe characters; otherwise a UUID is generated. The ID is stored
+    in a context variable so all loggers inside the request emit it.
+    """
+    request_id = generate_request_id(dict(request.headers))
+    token = request_id_var.set(request_id)
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        logger.info(
+            "request %s %s -> %s (%sms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            int((time.perf_counter() - started) * 1000),
+        )
+        return response
+    except Exception:
+        logger.exception(
+            "request %s %s failed (request_id=%s)", request.method, request.url.path, request_id
+        )
+        raise
+    finally:
+        request_id_var.reset(token)
+
+
 # --- Global error handler ------------------------------------------------
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    request_id = request_id_var.get("unknown")
+    logger.exception(
+        "Unhandled exception on %s %s", request.method, request.url.path,
+        extra={"request_id": request_id},
+    )
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "code": "INTERNAL_ERROR"},
+        content={
+            "error": "Internal server error",
+            "code": "INTERNAL_ERROR",
+            "request_id": request_id,
+        },
     )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Every HTTP error carries the request ID for correlation by support."""
+    content = dict(exc.detail) if isinstance(exc.detail, dict) else {"detail": exc.detail}
+    content["request_id"] = request_id_var.get("unknown")
+    return JSONResponse(status_code=exc.status_code, content=content, headers=exc.headers)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    content = {
+        "detail": jsonable_encoder(exc.errors()),
+        "request_id": request_id_var.get("unknown"),
+    }
+    return JSONResponse(status_code=422, content=content)
 
 
 API_PREFIX = "/api"

@@ -9,13 +9,14 @@ Security model:
 """
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
 from app.models import Investigation, new_id, utcnow
 from app.services.analysis import start_analysis
+from app.services.ratelimit import InMemoryRateLimiter
 from app.services.storage import EmptyFileError, FileTooLargeError, save_upload
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,33 @@ router = APIRouter(prefix="/samples", tags=["samples"])
 
 settings = get_settings()
 
+_upload_limiter = InMemoryRateLimiter(
+    limit=settings.upload_rate_limit,
+    window_seconds=settings.upload_rate_window_seconds,
+)
 
-@router.post("/upload", status_code=201)
+
+def enforce_upload_rate_limit(request: Request) -> None:
+    """FastAPI dependency guarding POST /samples/upload against flooding.
+
+    Keyed by the immediate peer IP. In-memory only — appropriate for a single
+    backend instance (see app/services/ratelimit.py).
+    """
+    key = request.client.host if request.client else "unknown"
+    try:
+        allowed, retry_after = _upload_limiter.allow(key)
+    except Exception:  # noqa: BLE001 — fail safe: never block uploads on a limiter fault
+        logger.exception("Rate limiter fault; allowing upload for %s", key)
+        return
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many upload requests. Please wait and try again.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+@router.post("/upload", status_code=201, dependencies=[Depends(enforce_upload_rate_limit)])
 def upload_sample(file: UploadFile, db: Session = Depends(get_db)):
     try:
         stored = save_upload(file, settings.upload_dir_path, settings.max_upload_size)
@@ -55,7 +81,12 @@ def upload_sample(file: UploadFile, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(inv)
 
-    logger.info("Sample stored id=%s case=%s sha256=%s", inv.id, inv.case_id, inv.sha256)
+    logger.info(
+        "Sample stored case=%s sha256=%s",
+        inv.case_id,
+        inv.sha256,
+        extra={"investigation_id": inv.id, "analyzer": "upload"},
+    )
     start_analysis(inv.id)
     return {"message": "Sample received and queued for analysis", "investigation": inv.to_dict()}
 

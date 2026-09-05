@@ -6,6 +6,36 @@
 
 ---
 
+## 0.3 Current Status (Production Hardening) — updated 06 Sep 2026
+
+All production-backlog items from the security/ESLint hardening are now done and
+pushed (`60ff096`, `16d2aaf`), and the remaining backlog landed today (uncommitted):
+
+**Working now (verified end-to-end):**
+- **Structured logging + request IDs** (`app/logging_config.py`): every request and
+  error response carries a correlated `X-Request-ID`; client-provided IDs are honored
+  only if short + safe; access logs, analysis logs and error bodies carry the ID.
+- **Upload rate limiting** (`app/services/ratelimit.py`): fixed-window in-memory limiter
+  (default 30/min per IP) on `POST /api/samples/upload`, `429` + `Retry-After` header,
+  fail-safe (a limiter fault never blocks uploads). Documented single-instance scope.
+- **PostgreSQL readiness**: `psycopg2-binary` added to `requirements.txt`; compose no
+  longer hardcodes credentials (`${POSTGRES_PASSWORD}`); `pool_pre_ping=True`.
+- **Docker**: removed unused Redis + `USE_REAL_LLM`; backend/frontend ports + healthchecks
+  aligned; frontend `.dockerignore` already excludes env/node_modules.
+- **Quality gate**: ESLint flat config (typescript-eslint + react-hooks + react-refresh,
+  `--max-warnings 0`) committed and clean; `tsc`, `vite build`, `npm run lint` all green.
+- **147 backend tests pass** (`python -m pytest` in `backend/`), requested-ID/logging
+  (11) and rate-limit (8) suites added.
+- **Live**: backend `:8000` and frontend `:5173` running; `/api` proxy verified; security
+  headers + request IDs confirmed on live responses.
+
+**Still to do:** the only open items are external — live Postgres and Docker verification
+require a machine/server with those tools (neither is installed here; documented as
+NOT VERIFIED, not claimed). Ollama similarly remains uninstalled (graceful fallback
+verified). A production TLS/HTTPS + reverse-proxy setup is out of scope.
+
+---
+
 ## 0. Current Status (Phase 1 — Stabilization) — updated 09 Aug 2026
 
 **Decision (user):** the project root is `Desktop\AI Sandbox` (the former "Aegis Sandbox AI"

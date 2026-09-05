@@ -1,8 +1,9 @@
 """Database engine, session and declarative base.
 
-SQLite by default (see Settings.database_url). Tables are created on startup
-via init_db(); a small in-app migration step can be layered on later if the
-schema evolves.
+SQLite by default (see Settings.database_url); PostgreSQL is supported by
+pointing DATABASE_URL at a postgresql+psycopg2:// URL. Tables are created on
+startup via init_db(); a proper migration framework (Alembic) can be layered
+on later if the schema evolves past additive changes.
 """
 from collections.abc import Generator
 
@@ -15,7 +16,13 @@ settings = get_settings()
 
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 
-engine = create_engine(settings.database_url, connect_args=connect_args)
+engine = create_engine(
+    settings.database_url,
+    connect_args=connect_args,
+    # Verify pooled connections are still valid before use (avoids serving a
+    # stale connection after a Postgres restart / SQLite handle is closed).
+    pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

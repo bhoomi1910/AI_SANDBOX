@@ -59,7 +59,7 @@ live backend. `Dynamic`, `Network` and `Threat Intel` still render the mock prot
 | Layer | Technology |
 |-------|------------|
 | Frontend | React 18 + TypeScript, Vite, TailwindCSS, TanStack Query, Recharts, Framer Motion |
-| Backend | Python 3.11+ (tested on 3.14), FastAPI, SQLAlchemy 2, SQLite |
+| Backend | Python 3.11+ (tested on 3.14), FastAPI, SQLAlchemy 2, SQLite (PostgreSQL-ready via psycopg2) |
 | Reporting | ReportLab (PDF) |
 | AI (optional) | Local Ollama only — free models auto-discovered via `/api/tags`, no cloud/paid inference |
 
@@ -116,13 +116,14 @@ on its built-in mock dataset — no backend required.
 ## Tests
 
 ```bash
-# Backend — 92 tests (unit + integration + end-to-end API), no real Ollama needed
+# Backend — 147 tests (unit + integration + end-to-end API), no real Ollama needed
 cd backend
 ..\venv\Scripts\python.exe -m pytest -q        # Windows
 ../venv/bin/python -m pytest -q                # Linux/macOS
 
-# Frontend — type-check + production build
+# Frontend — type-check + lint + production build
 cd frontend
+npm run lint
 npm run build
 ```
 
@@ -136,7 +137,7 @@ All routes are prefixed with `/api`.
 |--------|------|-------------|
 | `GET` | `/health` | Service health + component status |
 | `GET` | `/dashboard/stats` | Live dashboard statistics |
-| `POST` | `/samples/upload` | Secure upload → hashing → analysis (100 MiB limit, empty rejected) |
+| `POST` | `/samples/upload` | Secure upload → hashing → analysis (100 MiB limit, empty rejected, rate-limited 30/min/IP) |
 | `GET` | `/investigations` | List investigations (optional `?status=` filter) |
 | `GET` | `/investigations/{id}` | Single investigation |
 | `GET` | `/investigations/{id}/static` | Full persisted analysis payload |
@@ -176,7 +177,7 @@ AI SANDBOX/
 │   │       ├── detection/     # evidence · IOC · rules · MITRE · graph
 │   │       ├── ai/            # Ollama provider · prompt · strict validation
 │   │       └── reports/       # ReportLab PDF report (context builder + render)
-│   ├── tests/                 # 92 pytest tests (isolated temp DB)
+│   ├── tests/                 # 147 pytest tests (isolated temp DB)
 │   ├── .env.example
 │   └── requirements.txt       # pinned dependencies
 ├── docs/                      # design + status docs (ARCHITECTURE, API, DATABASE, CHANGELOG…)
@@ -195,6 +196,8 @@ AI SANDBOX/
 - **AI** requires a local Ollama; without it the AI sections show a labelled "unavailable" state.
 - The upload accepts any file type, but analysis depth depends on the installed analyzers
   (PE / Office / PDF / Image / script text).
+- The upload rate limiter is in-memory and therefore **per single backend instance**; a
+  horizontally scaled deployment must swap it for a shared store (e.g. Redis).
 
 ---
 
@@ -208,6 +211,13 @@ Phase-completed log in [`docs/CHANGELOG.md`](./docs/CHANGELOG.md) and live statu
 3. **Phase 3** — detection & evidence engine (IOCs, correlation rules, MITRE, graph).
 4. **Phase 4** — AI/Ollama interpretation engine (interpretation only, strict validation).
 5. **Phase 7** — investigation PDF report (server-generated, frontend Report page).
+6. **Phase 8 (2026-08-20)** — security hardening: CORS, security headers, sanitized error
+   responses, adversarial test suite, non-root Docker images, nginx hardening.
+7. **Phase 9 (2026-08-31)** — quality gate: ESLint (typescript-eslint, react-hooks,
+   react-refresh) in flat config, 17 findings fixed, zero-warnings lint.
+8. **Phase 10 (2026-09-06)** — production hardening: structured logging with per-request
+   IDs, upload rate limiting, PostgreSQL driver + Docker env substitution, regression +
+   security regression, verified production-readiness checklist.
 
 ---
 
