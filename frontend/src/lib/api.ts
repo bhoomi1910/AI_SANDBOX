@@ -1,6 +1,6 @@
 import type { Investigation } from "@/data/types";
 
-const API_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000/api";
+const API_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api";
 
 /** Set VITE_USE_BACKEND=false to force the demo (mock) dataset. */
 export const USE_BACKEND = (import.meta.env.VITE_USE_BACKEND ?? "true") !== "false";

@@ -23,6 +23,24 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _iso_utc(dt: datetime | None) -> str | None:
+    """Serialize a datetime to ISO format, always including a UTC offset.
+
+    SQLite does not preserve timezone info on round-trip, so datetimes read
+    back from the DB can come back "naive" even though they were stored as
+    UTC. Without an explicit offset (Z / +00:00), the frontend's JS `Date`
+    parser assumes the string is in the browser's local time, which produces
+    incorrect "time ago" values (e.g. showing 5h ago in IST instead of the
+    real elapsed time). This helper re-attaches UTC before formatting so the
+    offset is always present in the JSON sent to the client.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 class Investigation(Base):
     """One uploaded file -> one investigation. Status lifecycle:
 
@@ -82,7 +100,7 @@ class Investigation(Base):
                 "sha256": self.sha256,
                 "md5": self.md5,
                 "sha1": self.sha1,
-                "submittedAt": self.uploaded_at.isoformat(),
+                "submittedAt": _iso_utc(self.uploaded_at),
                 "submittedBy": self.submitted_by,
             },
             "status": self.status,
@@ -95,9 +113,9 @@ class Investigation(Base):
             "aiConfidence": self.ai_confidence,
             "detections": self.detections,
             "totalEngines": self.total_engines,
-            "createdAt": self.uploaded_at.isoformat(),
-            "completedAt": self.completed_at.isoformat() if self.completed_at else None,
-            "closedAt": self.closed_at.isoformat() if self.closed_at else None,
+            "createdAt": _iso_utc(self.uploaded_at),
+            "completedAt": _iso_utc(self.completed_at),
+            "closedAt": _iso_utc(self.closed_at),
             "closedBy": self.closed_by or None,
             "resolution": self.resolution or None,
             "closureNotes": self.closure_notes or None,
