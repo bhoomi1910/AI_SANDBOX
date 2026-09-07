@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     upload_rate_limit: int = 30
     upload_rate_window_seconds: int = 60
 
+    # External threat-intel enrichment (VirusTotal / AlienVault OTX / AbuseIPDB).
+    # Empty keys disable the provider entirely and the app stays fully offline.
+    # Keys are loaded from the gitignored .env file — never commit them.
+    virustotal_api_key: str = ""
+    otx_api_key: str = ""
+    abuseipdb_api_key: str = ""
+    threat_intel_timeout_seconds: float = 6.0
+
     # CORS
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
@@ -56,6 +64,10 @@ class Settings(BaseSettings):
     @property
     def report_dir_path(self) -> Path:
         return Path(self.report_dir)
+
+    @property
+    def threat_intel_enabled(self) -> bool:
+        return any([self.virustotal_api_key, self.otx_api_key, self.abuseipdb_api_key])
 
     @property
     def ai_provider_label(self) -> str:

@@ -146,7 +146,9 @@ app.include_router(upload.router, prefix=API_PREFIX)
 @app.get("/api/health", tags=["system"])
 def health():
     """Health check — exposes no internal infrastructure details."""
+    from app.services import threatintel
     from app.services.ai.providers import is_ai_available
+    threat_providers = threatintel.configured_providers(settings)
     return {
         "status": "operational",
         "app": settings.app_name,
@@ -155,7 +157,7 @@ def health():
             "api": "operational",
             "static_analysis": "operational",
             "ai_engine": "available" if is_ai_available() else "unavailable",
-            "threat_intel_feeds": "pending",
+            "threat_intel_feeds": threatintel.provider_labels(threat_providers) or "disabled",
         },
     }
 

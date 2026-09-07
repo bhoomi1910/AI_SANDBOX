@@ -173,14 +173,46 @@ def graph(inv_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{inv_id}/threat-intel")
 def threat_intel(inv_id: str, db: Session = Depends(get_db)):
+    """External threat-intel enrichment of the extracted IOCs (optional).
+
+    Detection is always deterministic (payload IOCs). Enrichment is layered on
+    top only when the operator has configured provider API keys; every provider
+    lookup failure is recorded as ``status=error`` and never raises. Results are
+    cached on the stored payload so repeat requests are instant and free-tier
+    quotas are protected (see app/services/threatintel.py).
+    """
+    from app.config import get_settings
+    from app.services import threatintel
+
     inv = _require(db, inv_id)
     payload = _load_result(db, inv_id)
     if payload is None:
         return {"sources": [], "iocs": [], "note": "Static analysis has not completed yet"}
+
+    providers = threatintel.configured_providers(get_settings())
+    iocs = payload.get("iocs", [])
+    if not providers:
+        return {
+            "sources": [],
+            "iocs": iocs,
+            "note": "Deterministic IOC extraction only — no external threat-intel feeds configured.",
+        }
+
+    cache, enriched = threatintel.enrich_iocs(
+        iocs, providers, existing=payload.get("threat_intel_cache", {})
+    )
+    payload["threat_intel_cache"] = cache
+    payload["threat_intel"] = {
+        "sources": threatintel.provider_labels(providers),
+        "checked_at": threatintel._utc_now(),
+        "enriched": sum(1 for i in enriched if i.get("enrichments")),
+    }
+    _save_result(db, inv_id, payload)
+
     return {
-        "sources": [],
-        "iocs": payload.get("iocs", []),
-        "note": "Deterministic IOC extraction only — no external threat-intel feeds yet.",
+        "sources": threatintel.provider_labels(providers),
+        "iocs": enriched,
+        "note": f"Enrichment from {', '.join(threatintel.provider_labels(providers))}.",
     }
 
 
