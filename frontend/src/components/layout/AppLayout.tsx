@@ -10,7 +10,7 @@ export function AppLayout() {
 
   const logout = () => {
     sessionStorage.removeItem("aegis-auth");
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   return (

@@ -7,6 +7,7 @@ import { useState } from "react";
 export function Topbar({ onMenu, onLogout }: { onMenu: () => void; onLogout: () => void }) {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-canvas/70 px-4 backdrop-blur-xl lg:px-6">
@@ -51,15 +52,38 @@ export function Topbar({ onMenu, onLogout }: { onMenu: () => void; onLogout: () 
 
         <div className="mx-1 h-6 w-px bg-border" />
 
-        <button className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-surface-overlay/60 cursor-pointer">
-          <div className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-primary/30 to-accent/30 text-xs font-bold text-primary ring-1 ring-primary/30">
-            JO
-          </div>
-          <div className="hidden text-left leading-tight lg:block">
-            <div className="text-xs font-medium text-foreground">J. Okafor</div>
-            <div className="text-[0.65rem] text-muted-foreground">SOC Analyst · Tier 2</div>
-          </div>
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            aria-expanded={profileOpen}
+            aria-haspopup="menu"
+            onClick={() => setProfileOpen((open) => !open)}
+            className="flex cursor-pointer items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-surface-overlay/60"
+          >
+            <div className="grid size-8 place-items-center rounded-full bg-gradient-to-br from-primary/30 to-accent/30 text-xs font-bold text-primary ring-1 ring-primary/30">
+              JO
+            </div>
+            <div className="hidden text-left leading-tight lg:block">
+              <div className="text-xs font-medium text-foreground">J. Okafor</div>
+              <div className="text-[0.65rem] text-muted-foreground">SOC Analyst · Tier 2</div>
+            </div>
+          </button>
+          {profileOpen && (
+            <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-44 rounded-lg border border-border bg-surface p-1 shadow-xl">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProfileOpen(false);
+                  onLogout();
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-critical/10 hover:text-critical"
+              >
+                <LogOut className="size-4" /> Sign out
+              </button>
+            </div>
+          )}
+        </div>
 
         <Button variant="ghost" size="icon" onClick={onLogout} aria-label="Sign out" title="Sign out">
           <LogOut className="size-[18px]" />

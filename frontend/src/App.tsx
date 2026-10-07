@@ -1,5 +1,4 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { InvestigationLayout } from "@/components/shared/InvestigationLayout";
 import Login from "@/pages/Login";
@@ -24,8 +23,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 export default function App() {
   const location = useLocation();
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Routes location={location}>
         <Route path="/login" element={<Login />} />
 
         <Route
@@ -54,6 +52,5 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
-    </AnimatePresence>
   );
 }
