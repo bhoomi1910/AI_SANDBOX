@@ -39,6 +39,19 @@ def test_upload_roundtrip_investigation_list_and_get(client):
     assert detail.json()["sample"]["filename"] == "sample.pdf"
 
 
+def test_delete_investigation_removes_queue_item(client):
+    created = client.post(
+        "/api/samples/upload",
+        files={"file": ("to-delete.pdf", b"%PDF-1.4 test", "application/pdf")},
+    ).json()["investigation"]
+
+    deleted = client.delete(f"/api/investigations/{created['id']}")
+
+    assert deleted.status_code == 200
+    assert client.get(f"/api/investigations/{created['id']}").status_code == 404
+    assert not any(i["id"] == created["id"] for i in client.get("/api/investigations").json())
+
+
 def test_upload_empty_file_rejected(client):
     resp = client.post(
         "/api/samples/upload",

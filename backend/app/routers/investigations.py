@@ -8,6 +8,7 @@ state when Ollama cannot be reached).
 """
 import json
 import re
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -115,6 +116,19 @@ def update_investigation(inv_id: str, body: InvestigationUpdate, db: Session = D
 def get_investigation(inv_id: str, db: Session = Depends(get_db)):
     inv = _require(db, inv_id)
     return inv.to_dict()
+
+
+@router.delete("/{inv_id}")
+def delete_investigation(inv_id: str, db: Session = Depends(get_db)):
+    inv = _require(db, inv_id)
+    stored_path = Path(inv.storage_path)
+    db.query(AnalysisResult).filter(AnalysisResult.investigation_id == inv_id).delete(
+        synchronize_session=False
+    )
+    db.delete(inv)
+    db.commit()
+    stored_path.unlink(missing_ok=True)
+    return {"message": "Investigation and stored sample deleted"}
 
 
 @router.get("/{inv_id}/static")

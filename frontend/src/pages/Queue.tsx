@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import { ListChecks, Search, SlidersHorizontal } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ListChecks, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/misc";
@@ -25,8 +25,10 @@ const statusFilters: { key: InvestigationStatus | "all"; label: string }[] = [
 
 export default function Queue() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InvestigationStatus | "all">("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["investigations"],
@@ -60,6 +62,17 @@ export default function Queue() {
       )
       .sort((a, b) => severityRank[b.severity] - severityRank[a.severity]);
   }, [items, query, filter]);
+
+  const deleteInvestigation = async (id: string, filename: string) => {
+    if (!window.confirm(`Delete ${filename} from the investigation queue?`)) return;
+    setDeletingId(id);
+    try {
+      await api.deleteInvestigation(id);
+      await queryClient.invalidateQueries({ queryKey: ["investigations"] });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div>
@@ -121,6 +134,7 @@ export default function Queue() {
                 <th className="px-3 py-3 font-medium">Detections</th>
                 <th className="px-3 py-3 font-medium">Analyst</th>
                 <th className="px-5 py-3 text-right font-medium">Age</th>
+                <th className="px-3 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -181,6 +195,23 @@ export default function Queue() {
                       <span className="text-xs text-muted-foreground">{inv.assignedTo}</span>
                     </td>
                     <td className="px-5 py-3.5 text-right text-xs text-muted-foreground">{timeAgo(inv.createdAt)}</td>
+                    <td className="px-3 py-3.5 text-right">
+                      {!usingDemo && (
+                        <button
+                          type="button"
+                          title="Delete investigation"
+                          aria-label={`Delete ${inv.sample.filename}`}
+                          disabled={deletingId === inv.id}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void deleteInvestigation(inv.id, inv.sample.filename);
+                          }}
+                          className="inline-grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-critical/10 hover:text-critical disabled:cursor-wait disabled:opacity-50"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </td>
                   </motion.tr>
                 );
               })}

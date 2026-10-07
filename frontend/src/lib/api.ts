@@ -99,6 +99,9 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
+  deleteInvestigation: (id: string) =>
+    request<{ message: string }>(`/investigations/${id}`, { method: "DELETE" }),
+
   /** Download the server-generated PDF report for an investigation. */
   getReportPdf: async (id: string) => {
     const res = await fetch(`${API_URL}/investigations/${id}/report/pdf`);
@@ -115,10 +118,10 @@ export const api = {
     return res.blob();
   },
 
-  uploadSample: async (file: File) => {
+  uploadSample: async (file: File, signal?: AbortSignal) => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${API_URL}/samples/upload`, { method: "POST", body: form });
+    const res = await fetch(`${API_URL}/samples/upload`, { method: "POST", body: form, signal });
     let body: { message?: string; investigation?: Investigation; detail?: string } | null = null;
     try {
       body = await res.json();

@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Cpu,
   Lock,
+  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +51,7 @@ export default function Upload() {
   const [stepIndex, setStepIndex] = useState(0);
   const [caseId, setCaseId] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const uploadController = useRef<AbortController | null>(null);
 
   const start = useCallback(async (f: { name: string; size: number; type: string; raw?: File }) => {
     setFile(f);
@@ -57,6 +59,8 @@ export default function Upload() {
     setProgress(0);
     setStepIndex(0);
     setError("");
+    const controller = new AbortController();
+    uploadController.current = controller;
 
     // Animate progress while the upload request is in flight; the endpoint
     // returns once the file is stored and the investigation is queued.
@@ -69,14 +73,23 @@ export default function Upload() {
 
     try {
       if (!f.raw) throw new Error("No file selected");
-      const result = await api.uploadSample(f.raw);
+      const result = await api.uploadSample(f.raw, controller.signal);
       clearInterval(timer);
+      uploadController.current = null;
       setProgress(100);
       setStepIndex(pipeline.length - 1);
       setCaseId(result.investigation.caseId);
       setTimeout(() => setStage("queued"), 400);
     } catch (err) {
       clearInterval(timer);
+      uploadController.current = null;
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setStage("idle");
+        setFile(null);
+        setProgress(0);
+        setStepIndex(0);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Upload failed");
       setStage("error");
     }
@@ -95,6 +108,8 @@ export default function Upload() {
   };
 
   const reset = () => {
+    uploadController.current?.abort();
+    uploadController.current = null;
     setStage("idle");
     setFile(null);
     setProgress(0);
@@ -194,6 +209,11 @@ export default function Upload() {
                         </div>
                       );
                     })}
+                  </div>
+                  <div className="mt-7 flex justify-center">
+                    <Button variant="outline" onClick={reset}>
+                      <X className="size-4" /> Cancel upload
+                    </Button>
                   </div>
                 </motion.div>
               )}
